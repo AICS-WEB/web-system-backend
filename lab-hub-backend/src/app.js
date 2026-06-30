@@ -47,3 +47,9 @@ app.use((err, req, res, next) => {
 
 // 타 모듈(server.js 등)에서 app 인스턴스를 사용할 수 있도록 내보냅니다.
 module.exports = app;
+
+// 기존 app.js 상단 라우터 로드 구역에 추가
+const usersRoutes = require('./routes/usersRoutes');
+
+// 기존 미들웨어 세팅 하단에 라우터 경로 바인딩 추가
+app.use('/api/users', usersRoutes);

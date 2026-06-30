@@ -21,9 +21,8 @@ app.use(
 );
 
 // ===== 라우터 등록 자리 =====
-// 인증(Auth) 도메인: 회원가입/로그인/토큰 갱신/로그아웃/비밀번호 재설정 엔드포인트.
-app.use('/api/auth', require('./routes/authRoutes'));
 // 예: app.use('/api/users', require('./routes/userRoutes'));
+// 예: app.use('/api/auth', require('./routes/authRoutes'));
 // ============================
 
 // 등록된 라우트와 일치하지 않는 요청에 대한 404 처리 미들웨어입니다.

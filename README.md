@@ -1,14 +1,14 @@
-# 🚀 Lab-Hub Backend
+# Lab-Hub Backend
 
 우리 연구실(Lab)의 효율적인 운영을 위한 통합 관리 시스템 백엔드입니다.
 
-## 🛠 Tech Stack
+## Tech Stack
 - **Language**: Node.js
 - **Framework**: Express.js
 - **Database**: PostgreSQL
 - **Environment**: dotenv, nodemon
 
-## 📂 Project Structure
+## Project Structure
 우리는 기능을 기준으로 폴더를 분리하여 협업합니다.
 lab-hub-backend/
 
@@ -38,7 +38,7 @@ ERD:
 - **학사 정보**: student_id, department, program, enrollment_year
 - **프로필**: name, research_topic, bio, github_url 등
 
-## 🤝 Collaboration Guidelines (중요!)
+## Collaboration Guidelines (중요!)
 우리는 **Git**을 사용하여 협업하며 다음 규칙을 준수합니다.
 
 1. **Branch 전략**
@@ -56,7 +56,7 @@ ERD:
 3. **기능 분리**
    - 각자 담당한 기능을 자기만의 파일(`controllers/내파일.js`)에 작성하여 충돌을 방지합니다.
 
-## 🚀 Getting Started
+## Getting Started
 1. 저장소 클론: `git clone [저장소 주소]`
 2. 라이브러리 설치: `npm install`
 3. 환경 변수 설정: `.env` 파일을 생성하고 DB 접속 정보를 입력합니다.

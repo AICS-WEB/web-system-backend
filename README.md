@@ -28,7 +28,11 @@ lab-hub-backend/
 
 └── package.json
 
-## 🗄 Database Schema (Users)
+## 🗄 Database Schema
+ERD:
+
+![ERD](docs/images/ERD.svg)
+
 현재 구현된 `users` 테이블은 다음과 같은 구조를 가집니다.
 - **인증/권한**: id, email, password_hash, role, account_status
 - **학사 정보**: student_id, department, program, enrollment_year

@@ -15,6 +15,7 @@ const pool = new Pool({
   port: process.env.DB_PORT,
 });
 
+
 // 데이터베이스와 커넥션 풀이 최초 연결에 성공했을 때 발생하는 이벤트 리스너입니다.
 pool.on('connect', () => {
   console.log('PostgreSQL Database Connection Pool Initialized Successfully.');

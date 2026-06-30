@@ -6,7 +6,7 @@
 
 const usersModel = require('../models/usersModel'); // 회원 조회/가입은 친구 영역인 usersModel을 재사용합니다.
 const authModel = require('../models/authModel'); // refresh/reset 토큰 및 인증 전용 쿼리를 제공합니다.
-const bcryptUtils = require('../routes/utils/bcryptUtils'); // 평문 비밀번호 해시·비교 유틸리티.
+const bcryptUtils = require('../utils/bcryptUtils'); // 평문 비밀번호 해시·비교 유틸리티.
 const jwtUtils = require('../utils/jwt'); // Access Token 발급 및 불투명 토큰 생성·해시 유틸리티.
 const { success, fail } = require('../utils/response'); // 표준 응답 포맷 헬퍼.
 

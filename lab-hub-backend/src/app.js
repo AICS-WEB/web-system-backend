@@ -58,6 +58,9 @@ app.use('/api/calendar', calendarRoutes);
 // [공지사항 도메인] /api/notices/ 상단고정 및 하이브리드 첨부파일 통제 처리
 app.use('/api/notices', noticeRoutes);
 
+// [연구비 회계 도메인] /api/budget/expenses 지출 기안 및 회계 정산 심사 처리
+app.use('/api/budget', budgetRoutes);
+
 // [논문 성과 관리 도메인] /api/publications/ 논문 CRUD 및 멤버 저자(N:M) / 첨부 통제 처리
 app.use('/api/publications', publicationsRoutes);
 

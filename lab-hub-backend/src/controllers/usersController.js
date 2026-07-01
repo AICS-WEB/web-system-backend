@@ -138,3 +138,84 @@ const UsersController = {
 };
 
 module.exports = UsersController;
+
+/**
+   * @function getPendingUsers
+   * @description [관리자 전용] 가입 승인 대기 상태인 유저 리스트를 반환합니다.
+   */
+  getPendingUsers: async (req, res) => {
+    try {
+      // 대기자 리스트를 Model 레이어에서 스캔해옵니다.
+      const pendingUsers = await UsersModel.findPendingUsers();
+      
+      return response.success(res, '가입 승인 대기자 목록 조회 성공', { 
+        count: pendingUsers.length,
+        users: pendingUsers 
+      }, 200);
+    } catch (error) {
+      console.error('대기자 목록 조회 중 서버 에러 발생:', error);
+      return response.error(res, '서버 내부 오류로 대기자 목록을 가져오지 못했습니다.', 500);
+    }
+  },
+
+  /**
+   * @function approveUser
+   * @description [관리자 전용] 사용자의 가입 신청을 최종 승인(approved) 처리합니다.
+   */
+  approveUser: async (req, res) => {
+    try {
+      const userId = req.params.id;
+
+      // 1. 해당 유저가 실제로 존재하는지 무결성 체크
+      const user = await UsersModel.findById(userId);
+      if (!user) {
+        return response.error(res, '존재하지 않는 사용자입니다.', 404);
+      }
+
+      // 2. 이미 승인된 유저인지 상태 필터링 알고리즘
+      if (user.account_status === 'approved') {
+        return response.error(res, '이미 가입 승인이 완료된 사용자입니다.', 400);
+      }
+
+      // 3. 상태를 'approved'로 원자적 업데이트(Atomic Update)
+      const updatedUser = await UsersModel.updateUserStatus(userId, 'approved');
+
+      // [추후 고도화]: 이 시점에 notifications 테이블에 "가입이 승인되었습니다" 알림을 생성하는 로직 연동 예정
+
+      return response.success(res, `${updatedUser.name} 연구원의 가입 신청을 승인했습니다.`, {
+        user: updatedUser
+      }, 200);
+    } catch (error) {
+      console.error('가입 승인 중 에러 발생:', error);
+      return response.error(res, '서버 오류로 가입 승인 처리에 실패했습니다.', 500);
+    }
+  },
+
+  /**
+   * @function rejectUser
+   * @description [관리자 전용] 사용자의 가입 신청을 반려(rejected) 처리합니다.
+   */
+  rejectUser: async (req, res) => {
+    try {
+      const userId = req.params.id;
+
+      const user = await UsersModel.findById(userId);
+      if (!user) {
+        return response.error(res, '존재하지 않는 사용자입니다.', 404);
+      }
+
+      if (user.account_status === 'rejected') {
+        return response.error(res, '이미 반려 처리된 신청 건입니다.', 400);
+      }
+
+      // 상태를 'rejected'로 업데이트
+      const updatedUser = await UsersModel.updateUserStatus(userId, 'rejected');
+
+      return response.success(res, `${updatedUser.name} 연구원의 가입 신청을 반려했습니다.`, {
+        user: updatedUser
+      }, 200);
+    } catch (error) {
+      console.error('가입 반려 중 에러 발생:', error);
+      return response.error(res, '서버 오류로 가입 반려 처리에 실패했습니다.', 500);
+    }
+  }

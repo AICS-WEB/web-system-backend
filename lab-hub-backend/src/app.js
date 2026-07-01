@@ -18,6 +18,7 @@ const calendarRoutes = require('./routes/calendarRoutes'); // [캘린더 관리]
 const noticeRoutes = require('./routes/noticeRoutes'); // [공지사항] 상단고정 및 하이브리드 첨부파일 통제
 const budgetRoutes = require('./routes/budgetRoutes'); // [연구비 회계] 예산 검증 및 지출 정산 통제
 const publicationsRoutes = require('./routes/publicationsRoutes'); // [논문 성과 관리] 논문 CRUD 및 하이브리드 저자(authors_text + 멤버) 관리
+const filesRoutes = require('./routes/filesRoutes'); // [파일 공유] URL(drive) 링크 기반 등급별 열람/다운로드 카운트/버전 관리
 
 // Express 애플리케이션 인스턴스를 생성합니다.
 const app = express();
@@ -63,6 +64,9 @@ app.use('/api/budget', budgetRoutes);
 
 // [논문 성과 관리 도메인] /api/publications/ 논문 CRUD 및 멤버 저자(N:M) / 첨부 통제 처리
 app.use('/api/publications', publicationsRoutes);
+
+// [파일 공유 도메인] /api/files/ URL(drive) 링크 기반 파일 CRUD 및 min_role 동적 인가 처리
+app.use('/api/files', filesRoutes);
 
 // ==========================================
 // 🚨 4. 라우터 하단 예외 및 에러 핸들러 미들웨어 (Error Handlers)

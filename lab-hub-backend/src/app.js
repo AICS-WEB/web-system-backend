@@ -1,52 +1,90 @@
 /**
  * @file app.js
- * @description Express 애플리케이션 인스턴스를 생성하고 미들웨어 및 라우터를 등록하는 진입점 파일입니다.
+ * @description Express 애플리케이션 인스턴스를 생성하고 미들웨어 및 전체 도메인 라우터를 순차적으로 등록하는 환경 설정 파일입니다.
  */
 
 require('dotenv').config(); // .env 파일의 환경 변수를 process.env에 로드합니다.
 const express = require('express'); // Express 프레임워크를 가져옵니다.
 const cors = require('cors'); // 교차 출처 리소스 공유(CORS) 설정을 위한 미들웨어입니다.
 
+// ==========================================
+// 📦 1. 라우터 모듈 로드 구역 (Router Modules Load)
+// ==========================================
+const authRoutes = require('./routes/authRoutes'); // [인증] 회원가입/로그인/토큰 관리 등
+const usersRoutes = require('./routes/usersRoutes'); // [사용자 관리] 대기자 조회 및 승인/반려 등
+const attendanceRoutes = require('./routes/attendanceRoutes'); // [출결] IP/시각 검증 기반 출퇴근 통제
+const leaveRoutes = require('./routes/leaveRoutes'); // [휴가] 연차 기안 및 결재/출결 동기화 연동
+
 // Express 애플리케이션 인스턴스를 생성합니다.
 const app = express();
 
-// 요청 본문(JSON)을 파싱하기 위한 내장 미들웨어를 등록합니다.
+// ==========================================
+// ⚙️ 2. 글로벌 공통 미들웨어 세팅 (Global Middlewares)
+// ==========================================
+
+// 요청 본문(JSON)을 파싱하여 req.body에 안전하게 바인딩하기 위한 내장 미들웨어입니다.
 app.use(express.json());
 
-// CORS 미들웨어를 등록합니다. 허용 출처는 환경 변수(CORS_ORIGIN)로 제어합니다.
+// CORS 미들웨어를 등록합니다. 허용 출처는 환경 변수(CORS_ORIGIN)로 제어하며, 없을 시 전체 개방합니다.
 app.use(
   cors({
-    origin: process.env.CORS_ORIGIN,
+    origin: process.env.CORS_ORIGIN || '*',
   })
 );
 
-// ===== 라우터 등록 자리 =====
-// 인증(Auth) 도메인: 회원가입/로그인/토큰 갱신/로그아웃/비밀번호 재설정 엔드포인트.
-app.use('/api/auth', require('./routes/authRoutes'));
-// 캘린더(Calendar) 도메인: 일정 CRUD 및 반복 일정 회차 예외 처리. 전 라우트 authMiddleware 보호.
-app.use('/api/calendar', require('./routes/calendarRoutes'));
-// 예: app.use('/api/users', require('./routes/userRoutes'));
-// ============================
+// ==========================================
+// 🔗 3. 도메인별 핵심 라우터 등록 (Domain Routers Binding)
+// ==========================================
 
-// 등록된 라우트와 일치하지 않는 요청에 대한 404 처리 미들웨어입니다.
+// [인증 도메인] /api/auth/register, /api/auth/login 등 처리
+app.use('/api/auth', authRoutes);
+
+// [사용자 관리 도메인] /api/users/pending, /api/users/:id/approve 등 처리
+app.use('/api/users', usersRoutes);
+
+// [출결 관리 도메인] /api/attendance/check-in, /api/attendance/check-out 처리
+app.use('/api/attendance', attendanceRoutes);
+
+// [휴가 관리 도메인] /api/leave/requests, /api/leave/requests/:id/review 처리
+app.use('/api/leave', leaveRoutes);
+
+// [캘린더 관리 도메인] /api/calendar/ 일정 CRUD 및 반복 일정 처리
+const calendarRoutes = require('./routes/calendarRoutes'); 
+app.use('/api/calendar', calendarRoutes);
+
+// ==========================================
+// 🚨 4. 라우터 하단 예외 및 에러 핸들러 미들웨어 (Error Handlers)
+// ==========================================
+
+/**
+ * [⚠️ 중요] 상단에 정의된 라우터들의 주소와 매칭되지 않는 모든 요청을 가로채는 404 라우트입니다.
+ * 반드시 모든 비즈니스 라우터들보다 최하단에 위치해야 정상적인 API 접근을 방해하지 않습니다.
+ */
 app.use((req, res, next) => {
   res.status(404).json({
     success: false,
     data: null,
-    message: 'Not Found',
+    message: '요청하신 엔드포인트를 찾을 수 없습니다. (Not Found)',
   });
 });
 
-// 공통 에러 핸들러: 라우터/미들웨어에서 발생한 예외를 한 곳에서 처리합니다.
+/**
+ * 글로벌 공통 에러 핸들러 미들웨어입니다.
+ * 컨트롤러나 다른 미들웨어 내부에서 예외가 발생하여 next(err)가 호출되었을 때 
+ * 런타임 에러를 중앙 집중식으로 캐치하여 시스템 다운을 예방합니다.
+ */
 app.use((err, req, res, next) => {
-  console.error('Unhandled error:', err);
+  console.error('Unhandled Server Error Logged:', err);
+  
   const status = err.status || 500;
+  
+  // 팀 표준 공통 응답 규격(success, data, message)을 완벽히 준수하여 클라이언트에 에러를 반환합니다.
   res.status(status).json({
     success: false,
     data: null,
-    message: err.message || 'Internal Server Error',
+    message: err.message || '서버 내부 오류가 발생했습니다. (Internal Server Error)',
   });
 });
 
-// 타 모듈(server.js 등)에서 app 인스턴스를 사용할 수 있도록 내보냅니다.
+// 타 모듈(server.js 등)에서 app 인스턴스를 가져가 포트를 바인딩할 수 있도록 모듈을 내보냅니다.
 module.exports = app;

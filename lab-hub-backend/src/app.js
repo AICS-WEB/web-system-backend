@@ -10,6 +10,7 @@ const cors = require('cors'); // 교차 출처 리소스 공유(CORS) 설정을 
 // ==========================================
 // 📦 1. 라우터 모듈 로드 구역 (Router Modules Load)
 // ==========================================
+// 各 도메인 레이어별로 분리된 라우팅 테이블을 불러옵니다.
 const authRoutes = require('./routes/authRoutes'); // [인증] 회원가입/로그인/토큰 관리 등
 const usersRoutes = require('./routes/usersRoutes'); // [사용자 관리] 대기자 조회 및 승인/반려 등
 const attendanceRoutes = require('./routes/attendanceRoutes'); // [출결] IP/시각 검증 기반 출퇴근 통제
@@ -67,6 +68,8 @@ app.use('/api/publications', publicationsRoutes);
 
 // [파일 공유 도메인] /api/files/ URL(drive) 링크 기반 파일 CRUD 및 min_role 동적 인가 처리
 app.use('/api/files', filesRoutes);
+// [물품 구매 신청 도메인] /api/procurement/requests 자재 구매 기안 및 결재 심사 처리
+app.use('/api/procurement', procurementRoutes);
 
 // ==========================================
 // 🚨 4. 라우터 하단 예외 및 에러 핸들러 미들웨어 (Error Handlers)

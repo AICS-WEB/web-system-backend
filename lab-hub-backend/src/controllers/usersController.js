@@ -134,12 +134,9 @@ const UsersController = {
       console.error('로그인 비즈니스 에러:', error);
       return response.error(res, '서버 내부 오류로 로그인에 실패했습니다.', 500);
     }
-  }
-};
+  },
 
-module.exports = UsersController;
-
-/**
+  /**
    * @function getPendingUsers
    * @description [관리자 전용] 가입 승인 대기 상태인 유저 리스트를 반환합니다.
    */
@@ -219,3 +216,7 @@ module.exports = UsersController;
       return response.error(res, '서버 오류로 가입 반려 처리에 실패했습니다.', 500);
     }
   }
+};
+
+// 모든 메서드가 수용된 유저 컨트롤러 객체를 최하단에서 일괄적으로 내보냅니다.
+module.exports = UsersController;

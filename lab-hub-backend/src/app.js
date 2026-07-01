@@ -95,5 +95,5 @@ app.use((err, req, res, next) => {
   });
 });
 
-// 타 모듈(server.js 등)에서 app 인스턴스를 가져가 포트를 바인딩할 수 있도록 모듈을 내보냅니다.
+// 타 모듈(server.js 등)에서 app 인스턴스를 가져가 포트를 바인딩할 수 있도록 모듈을 내보냅니다......
 module.exports = app;

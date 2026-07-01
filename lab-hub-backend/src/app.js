@@ -21,6 +21,8 @@ const budgetRoutes = require('./routes/budgetRoutes'); // [연구비 회계] 예
 const publicationsRoutes = require('./routes/publicationsRoutes'); // [논문 성과 관리] 논문 CRUD 및 하이브리드 저자(authors_text + 멤버) 관리
 const filesRoutes = require('./routes/filesRoutes'); // [파일 공유] URL(drive) 링크 기반 등급별 열람/다운로드 카운트/버전 관리
 const procurementRoutes = require('./routes/procurementRoutes'); // [물품 구매] 자재·supplies 구매 기안 및 회계 심사 통제
+const credentialRoutes = require('./routes/credentialRoutes'); // [공용 크레덴셜] 연구실 공용 계정 및 패스워드 자산 통제
+
 // Express 애플리케이션 인스턴스를 생성합니다.
 const app = express();
 
@@ -68,8 +70,12 @@ app.use('/api/publications', publicationsRoutes);
 
 // [파일 공유 도메인] /api/files/ URL(drive) 링크 기반 파일 CRUD 및 min_role 동적 인가 처리
 app.use('/api/files', filesRoutes);
+
 // [물품 구매 신청 도메인] /api/procurement/requests 자재 구매 기안 및 결재 심사 처리
 app.use('/api/procurement', procurementRoutes);
+
+// [공용 크레덴셜 관리 도메인] /api/credentials 공용 비밀번호 자산 조회 및 권한 통제 처리
+app.use('/api/credentials', credentialRoutes);
 
 // ==========================================
 // 🚨 4. 라우터 하단 예외 및 에러 핸들러 미들웨어 (Error Handlers)

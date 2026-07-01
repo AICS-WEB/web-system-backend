@@ -8,7 +8,7 @@ const router = express.Router();
 const noticeController = require('../controllers/noticeController');
 
 // 우리가 완벽하게 아키텍처를 다져놓은 토큰 검증 및 RBAC 인가 미들웨어 로드
-const { authenticateToken, authorizeRoles } = require('../middlewares/authMiddleware');
+const { authMiddleware, requireRole } = require('../middlewares/authMiddleware');
 
 /**
  * @route   POST /api/notices
@@ -17,8 +17,8 @@ const { authenticateToken, authorizeRoles } = require('../middlewares/authMiddle
  */
 router.post(
   '/', 
-  authenticateToken, 
-  authorizeRoles('manager', 'admin'), 
+  authMiddleware, 
+  requireRole('manager', 'admin'), 
   noticeController.createNotice
 );
 
@@ -27,6 +27,6 @@ router.post(
  * @desc    공지사항 상세 조회 및 원자적 조회수(view_count) 1 증가 연산 처리
  * @access  Private (연구실 승인 유저 전체 개방)
  */
-router.get('/:id', authenticateToken, noticeController.getNoticeDetail);
+router.get('/:id', authMiddleware, noticeController.getNoticeDetail);
 
 module.exports = router; // app.js 글로벌 미들웨어 파이프라인에 마운트하기 위해 export합니다.

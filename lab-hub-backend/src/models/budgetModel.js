@@ -1,52 +1,81 @@
 /**
  * @file budgetModel.js
- * @description 과제 예산 및 지출 내역(expenses) 테이블에 접근하여 SQL 질의를 수행하는 모델 레이어입니다.
+ * @description 예산(budgets) 및 지출 내역(expenses) 테이블에 접근하여 SQL 질의를 수행하는 모델 레이어입니다.
+ *
+ * 실제 스키마 매핑:
+ *  - budgets            : 예산 마스터 (project_id → research_projects, total_budget 등)
+ *  - expenses           : 지출 내역 (budget_id, category, item_name, amount, date, status, ...)
+ *  - expense_receipts   : 지출 영수증 첨부 (하이브리드 storage: drive/nas)
+ *
+ * 잔여 예산 계산: budgets.total_budget - COALESCE(SUM(expenses.amount WHERE status='approved'), 0)
  */
 
 const db = require('../config/db'); // 데이터베이스 커넥션 풀 로드
 
 const BudgetModel = {
   /**
-   * @function findProjectBudgetStatus
-   * @description 특정 과제의 총 배정 예산과 현재까지 승인(approved)된 총 지출액을 집계하여 반환합니다.
-   * @param {number} projectId - 과제 고유 식별 ID (PK)
-   * @returns {Promise<Object|null>} 총 예산 및 누적 지출액 객체
+   * @function findBudgetStatus
+   * @description 특정 예산의 총 배정액과 현재까지 승인(approved)된 지출액 합계를 반환합니다.
+   *              프론트/컨트롤러는 total_budget - total_spent 로 잔여 한도를 산출합니다.
+   * @param {number} budgetId - budgets.id
+   * @returns {Promise<Object|null>} { budget_id, name, fund_type, project_id, total_budget, total_spent } | null
    */
-  findProjectBudgetStatus: async (projectId) => {
-    // 과제 마스터 테이블과 지출 테이블을 조인 및 그룹화하여 실시간 잔여 예산을 산출합니다.
-    // 금액의 정밀도 보존을 위해 COALESCE 함수로 NULL 발생 시 0을 반환하도록 방어합니다.
+  findBudgetStatus: async (budgetId) => {
     const queryText = `
-      SELECT 
-        p.id AS project_id,
-        p.budget AS total_budget,
-        COALESCE(SUM(e.amount), 0) AS total_spent
-      FROM projects p
-      LEFT JOIN expenses e ON p.id = e.project_id AND e.status = 'approved'
-      WHERE p.id = $1
-      GROUP BY p.id, p.budget;
+      SELECT
+        b.id           AS budget_id,
+        b.name,
+        b.fund_type,
+        b.project_id,
+        b.total_budget,
+        COALESCE(SUM(e.amount) FILTER (WHERE e.status = 'approved'), 0) AS total_spent
+      FROM budgets b
+      LEFT JOIN expenses e ON e.budget_id = b.id
+      WHERE b.id = $1
+      GROUP BY b.id;
     `;
-    const { rows } = await db.query(queryText, [projectId]);
+    const { rows } = await db.query(queryText, [budgetId]);
     return rows[0];
   },
 
   /**
-   * @function createExpenseRequest
-   * @description 연구원이 기안한 연구비 지출 내역을 최초 등록합니다. 초기 결재 상태는 'pending'입니다.
-   * @param {Object} expenseData - 지출 상신 정보 DTO 객체
-   * @returns {Promise<Object>} 등록 완료된 지출 레코드
+   * @function createExpense
+   * @description 신규 지출 기안 레코드를 삽입합니다. 초기 status는 DB 기본값 'pending'.
+   * @param {Object} params - { budgetId, userId, category, itemName, amount, date }
+   * @returns {Promise<Object>} 등록된 지출 레코드
    */
-  createExpenseRequest: async (expenseData) => {
-    const { projectId, userId, amount, expenseType, purpose, receiptType, receiptPath, receiptUrl } = expenseData;
-    
-    // 명세서에 맞춰 receipt_type에 따라 path와 url을 상호 배제 형태로 안전하게 인서트합니다.
+  createExpense: async ({ budgetId, userId, category, itemName, amount, date }) => {
     const queryText = `
-      INSERT INTO expenses (
-        project_id, user_id, amount, expense_type, purpose, 
-        receipt_type, receipt_path, receipt_url, status, created_at, updated_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'pending', now(), now())
-      RETURNING id, project_id, user_id, amount, expense_type, status, created_at;
+      INSERT INTO expenses (budget_id, user_id, category, item_name, amount, date)
+      VALUES ($1, $2, $3, $4, $5, $6)
+      RETURNING id, budget_id, user_id, category, item_name, amount, date, status, created_at;
     `;
-    const values = [projectId, userId, amount, expenseType, purpose, receiptType, receiptPath, receiptUrl];
+    const values = [budgetId, userId || null, category, itemName, amount, date];
+    const { rows } = await db.query(queryText, values);
+    return rows[0];
+  },
+
+  /**
+   * @function createReceipt
+   * @description 지출 건에 첨부되는 영수증 레코드를 삽입합니다. storage_type(drive/nas)에 따라 file_url 또는 filepath 중 하나가 유효.
+   * @param {Object} params - { expenseId, filename, mimeType, storageType, fileUrl, filepath, filesize }
+   */
+  createReceipt: async ({ expenseId, filename, mimeType, storageType, fileUrl, filepath, filesize }) => {
+    const queryText = `
+      INSERT INTO expense_receipts (
+        expense_id, filename, mime_type, storage_type, file_url, filepath, filesize
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7)
+      RETURNING id, expense_id, filename, storage_type, file_url, filepath;
+    `;
+    const values = [
+      expenseId,
+      filename,
+      mimeType || null,
+      storageType,
+      storageType === 'drive' ? (fileUrl || null) : null,
+      storageType === 'nas' ? (filepath || null) : null,
+      filesize || null,
+    ];
     const { rows } = await db.query(queryText, values);
     return rows[0];
   },
@@ -63,19 +92,23 @@ const BudgetModel = {
 
   /**
    * @function updateExpenseStatus
-   * @description [관리자] 연구비 지출 내역서의 결재 상태를 최종 확정(approved/rejected)합니다.
+   * @description [관리자] 지출 내역서 결재 상태를 최종 승인/반려로 확정합니다.
    */
   updateExpenseStatus: async (expenseId, status, rejectReason, reviewerId) => {
     const queryText = `
       UPDATE expenses
-      SET status = $2, reject_reason = $3, reviewed_by = $4, reviewed_at = now(), updated_at = now()
-      WHERE id = $1
-      RETURNING id, project_id, amount, status, reviewed_at;
+         SET status        = $2,
+             reject_reason = $3,
+             reviewed_by   = $4,
+             reviewed_at   = now(),
+             updated_at    = now()
+       WHERE id = $1
+      RETURNING id, budget_id, amount, status, reviewed_by, reviewed_at;
     `;
     const values = [expenseId, status, rejectReason, reviewerId];
     const { rows } = await db.query(queryText, values);
     return rows[0];
-  }
+  },
 };
 
 module.exports = BudgetModel;

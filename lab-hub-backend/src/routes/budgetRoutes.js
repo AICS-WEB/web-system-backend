@@ -8,14 +8,14 @@ const router = express.Router();
 const budgetController = require('../controllers/budgetController');
 
 // 우리 코어 인프라인 JWT 검증 및 RBAC 미들웨어 가드 장착
-const { authenticateToken, authorizeRoles } = require('../middlewares/authMiddleware');
+const { authMiddleware, requireRole } = require('../middlewares/authMiddleware');
 
 /**
  * @route   POST /api/budget/expenses
  * @desc    연구비 지출 내역서 기안 상신 (잔여 예산 및 영수증 증빙 무결성 검사 가동)
  * @access  Private (연구실 승인 유저 전체)
  */
-router.post('/expenses', authenticateToken, budgetController.requestExpense);
+router.post('/expenses', authMiddleware, budgetController.requestExpense);
 
 /**
  * @route   PUT /api/budget/expenses/:id/review
@@ -24,8 +24,8 @@ router.post('/expenses', authenticateToken, budgetController.requestExpense);
  */
 router.put(
   '/expenses/:id/review',
-  authenticateToken,
-  authorizeRoles('manager', 'admin'),
+  authMiddleware,
+  requireRole('manager', 'admin'),
   budgetController.reviewExpense
 );
 

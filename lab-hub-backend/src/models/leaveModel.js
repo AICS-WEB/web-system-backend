@@ -35,24 +35,16 @@ const LeaveModel = {
     
     // 신규 신청 시 결재 상태(status)는 명세서 기본값인 'pending'으로 적재됩니다.
     // reviewed_by, reviewed_at, reject_reason은 결재 전이므로 초기값 NULL 상태를 유지합니다.
+    // SQL Injection 방어를 위해 파라미터화 쿼리를 사용합니다.
     const queryText = `
       INSERT INTO leave_requests (
         user_id, leave_type, half_period, start_date, end_date, reason, status, created_at, updated_at
       ) VALUES ($1, $2, $3, $4, $5, $6, 'pending', now(), now())
       RETURNING id, user_id, leave_type, half_period, start_date, end_date, reason, status, created_at;
     `;
-
     const values = [userId, leaveType, halfPeriod, startDate, endDate, reason];
-    const { rows } = await db.query(values, queryText ? values : [userId, leaveType, halfPeriod, startDate, endDate, reason]);
-    // 상기 바인딩 배열을 통해 SQL Injection 공격을 방어구축합니다.
-    const actualQuery = `
-      INSERT INTO leave_requests (
-        user_id, leave_type, half_period, start_date, end_date, reason, status, created_at, updated_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, 'pending', now(), now())
-      RETURNING id, user_id, leave_type, half_period, start_date, end_date, reason, status, created_at;
-    `;
-    const { rows: resultRows } = await db.query(actualQuery, values);
-    return resultRows[0];
+    const { rows } = await db.query(queryText, values);
+    return rows[0];
   },
 
   /**

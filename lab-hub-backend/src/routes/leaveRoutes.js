@@ -8,14 +8,14 @@ const router = express.Router();
 const leaveController = require('../controllers/leaveController');
 
 // 우리가 완벽하게 뼈대를 구축해 둔 토큰 검증 및 RBAC 인가 미들웨어 로드
-const { authenticateToken, authorizeRoles } = require('../middlewares/authMiddleware');
+const { authMiddleware, requireRole } = require('../middlewares/authMiddleware');
 
 /**
  * @route   POST /api/leave/requests
  * @desc    신규 휴가 신청서 기안 상신 (소수점 한도 검증 및 서식 필터링 가동)
  * @access  Private (일반 연구원 등급 이상 토큰 인증 필수)
  */
-router.post('/requests', authenticateToken, leaveController.requestLeave);
+router.post('/requests', authMiddleware, leaveController.requestLeave);
 
 /**
  * @route   PUT /api/leave/requests/:id/review
@@ -24,8 +24,8 @@ router.post('/requests', authenticateToken, leaveController.requestLeave);
  */
 router.put(
   '/requests/:id/review', 
-  authenticateToken, 
-  authorizeRoles('manager', 'admin'), 
+  authMiddleware, 
+  requireRole('manager', 'admin'), 
   leaveController.reviewLeave
 );
 

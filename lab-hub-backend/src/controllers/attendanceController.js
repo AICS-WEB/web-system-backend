@@ -4,10 +4,10 @@
  */
 
 const AttendanceModel = require('../models/attendanceModel');
-const response = require('../utils/response'); // 친구의 공통 응답 유틸 활용
+const { success, fail } = require('../utils/response'); // 팀 표준 공통 응답 유틸 (success/fail)
 
 // 연구실의 보안 화이트리스트 공인 IP 주소를 환경 변수에서 로드합니다.
-const LAB_IP = process.env.LAB_WHITE_LIST_IP || '123.45.67.89'; 
+const LAB_IP = process.env.LAB_WHITE_LIST_IP || '123.45.67.89';
 
 const AttendanceController = {
   /**
@@ -17,21 +17,28 @@ const AttendanceController = {
   checkIn: async (req, res) => {
     try {
       const userId = req.user.id; // authMiddleware가 주입해준 토큰 디코딩 정보 활용
-      
+
       // [알고리즘 1단계] 리버스 프록시 환경을 고려하여 사용자의 실제 공인 IP를 정밀하게 추출합니다.
-      const clientIp = req.headers['x-forwarded-for'] 
-        ? req.headers['x-forwarded-for'].split(',')[0].trim() 
+      const clientIp = req.headers['x-forwarded-for']
+        ? req.headers['x-forwarded-for'].split(',')[0].trim()
         : req.ip;
 
       // 대리 출석 우회를 막기 위해 IP 화이트리스트 대조 검증을 수행합니다.
-      if (clientIp !== LAB_IP && clientIp !== '::1' && clientIp !== '127.0.0.1') { // 로컬 테스트 허용 포함
-        return response.error(res, '연구실 외부 네트워크에서는 출근 체크가 불가능합니다.', 403);
+      // Node/Express가 로컬 접속 시 반환할 수 있는 표기(::1, 127.0.0.1, IPv4-mapped IPv6 ::ffff:127.x.x.x)를 모두 허용합니다.
+      const isLocalhost =
+        clientIp === '::1' ||
+        clientIp === '127.0.0.1' ||
+        clientIp === '::ffff:127.0.0.1' ||
+        (typeof clientIp === 'string' && clientIp.startsWith('::ffff:127.'));
+
+      if (clientIp !== LAB_IP && !isLocalhost) {
+        return fail(res, 403, '연구실 외부 네트워크에서는 출근 체크가 불가능합니다.');
       }
 
       // [알고리즘 2단계] 복합 무결성(UNIQUE) 충돌을 방지하기 위해 오늘 이미 출근했는지 선제 체크합니다.
       const alreadyCheckedIn = await AttendanceModel.findTodayRecord(userId);
       if (alreadyCheckedIn) {
-        return response.error(res, '오늘 이미 출근 체크를 완료하셨습니다.', 409);
+        return fail(res, 409, '오늘 이미 출근 체크를 완료하셨습니다.');
       }
 
       // [알고리즘 3단계] 타임스탬프 시각 비교 연산을 통한 지각(late) 여부 판별 알고리즘
@@ -52,11 +59,11 @@ const AttendanceController = {
         ? '지각으로 출근 처리되었습니다. 열공하세요!'
         : '정상적으로 출근 체크 완료되었습니다. 좋은 하루 되세요!';
 
-      return response.success(res, successMessage, { attendance: record }, 201);
+      return success(res, { attendance: record }, successMessage, 201);
 
     } catch (error) {
       console.error('출근 체크인 비즈니스 로직 예외 에러:', error);
-      return response.error(res, '서버 오류로 출근 처리에 실패했습니다.', 500);
+      return fail(res, 500, '서버 오류로 출근 처리에 실패했습니다.');
     }
   },
 
@@ -71,24 +78,22 @@ const AttendanceController = {
       // [알고리즘 1단계] 오늘 날짜로 생성된 출근 마스터 레코드가 존재하는지 검증합니다.
       const todayRecord = await AttendanceModel.findTodayRecord(userId);
       if (!todayRecord) {
-        return response.error(res, '오늘 출근한 기록이 존재하지 않아 퇴근 처리가 불가능합니다.', 404);
+        return fail(res, 404, '오늘 출근한 기록이 존재하지 않아 퇴근 처리가 불가능합니다.');
       }
 
       // [알고리즘 2단계] 이미 퇴근 도장이 찍혀있는지 정합성을 검사합니다.
       if (todayRecord.check_out) {
-        return response.error(res, '오늘 이미 퇴근 처리가 완료된 상태입니다.', 400);
+        return fail(res, 400, '오늘 이미 퇴근 처리가 완료된 상태입니다.');
       }
 
       // [알고리즘 3단계] 대상 레코드의 PK를 던져서 퇴근 시간을 실시간 업데이트(TIMESTAMP) 합니다.
       const updatedRecord = await AttendanceModel.updateCheckOut(todayRecord.id);
 
-      return response.success(res, '정상적으로 퇴근 체크 완료되었습니다. 고생하셨습니다!', { 
-        attendance: updatedRecord 
-      }, 200);
+      return success(res, { attendance: updatedRecord }, '정상적으로 퇴근 체크 완료되었습니다. 고생하셨습니다!');
 
     } catch (error) {
       console.error('퇴근 체크아웃 비즈니스 로직 예외 에러:', error);
-      return response.error(res, '서버 오류로 퇴근 처리에 실패했습니다.', 500);
+      return fail(res, 500, '서버 오류로 퇴근 처리에 실패했습니다.');
     }
   }
 };

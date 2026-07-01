@@ -15,7 +15,7 @@ CREATE TYPE half_period        AS ENUM ('am', 'pm');
 CREATE TYPE leave_status       AS ENUM ('pending', 'approved', 'rejected');
 CREATE TYPE event_type         AS ENUM ('meeting', 'deadline', 'event', 'trip', 'other');
 CREATE TYPE event_scope        AS ENUM ('shared', 'personal');
-CREATE TYPE attendance_status  AS ENUM ('present', 'absent', 'leave', 'half_leave');
+CREATE TYPE attendance_status  AS ENUM ('present', 'late', 'absent', 'leave', 'half_leave');
 CREATE TYPE notice_category    AS ENUM ('general', 'important', 'account_info', 'schedule');
 CREATE TYPE storage_type       AS ENUM ('drive', 'nas');
 CREATE TYPE fund_type          AS ENUM ('department', 'research', 'other');

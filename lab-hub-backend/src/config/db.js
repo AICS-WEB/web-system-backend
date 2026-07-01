@@ -28,6 +28,9 @@ pool.on('error', (err) => {
 });
 
 // 타 모듈(Model 등)에서 쿼리를 안전하게 수행할 수 있도록 인터페이스를 모듈화하여 내보냅니다.
+// - query(text, params): 단일 쿼리 (자동 커넥션 반환)
+// - connect(): 트랜잭션(BEGIN/COMMIT/ROLLBACK) 처리용 raw client 대여. 사용 후 반드시 client.release() 호출.
 module.exports = {
   query: (text, params) => pool.query(text, params),
+  connect: () => pool.connect(),
 };

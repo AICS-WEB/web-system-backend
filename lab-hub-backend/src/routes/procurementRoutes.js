@@ -8,14 +8,14 @@ const router = express.Router();
 const procurementController = require('../controllers/procurementController');
 
 // 코어 보안 인프라인 JWT 검증 및 RBAC 인가 미들웨어 가드 로드
-const { authenticateToken, authorizeRoles } = require('../middlewares/authMiddleware');
+const { authMiddleware, requireRole } = require('../middlewares/authMiddleware');
 
 /**
  * @route   POST /api/procurement/requests
  * @desc    신규 물품 구매 신청서 상신 (수량 및 가격 수치 벨리데이션 가동)
  * @access  Private (연구실 승인 유저 전체)
  */
-router.post('/requests', authenticateToken, procurementController.requestProcurement);
+router.post('/requests', authMiddleware, procurementController.requestProcurement);
 
 /**
  * @route   PUT /api/procurement/requests/:id/review
@@ -24,8 +24,8 @@ router.post('/requests', authenticateToken, procurementController.requestProcure
  */
 router.put(
   '/requests/:id/review',
-  authenticateToken,
-  authorizeRoles('manager', 'admin'),
+  authMiddleware,
+  requireRole('manager', 'admin'),
   procurementController.reviewProcurement
 );
 

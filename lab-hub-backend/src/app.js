@@ -23,6 +23,8 @@ app.use(
 // ===== 라우터 등록 자리 =====
 // 인증(Auth) 도메인: 회원가입/로그인/토큰 갱신/로그아웃/비밀번호 재설정 엔드포인트.
 app.use('/api/auth', require('./routes/authRoutes'));
+// 캘린더(Calendar) 도메인: 일정 CRUD 및 반복 일정 회차 예외 처리. 전 라우트 authMiddleware 보호.
+app.use('/api/calendar', require('./routes/calendarRoutes'));
 // 예: app.use('/api/users', require('./routes/userRoutes'));
 // ============================
 

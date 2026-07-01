@@ -48,6 +48,10 @@ app.use('/api/attendance', attendanceRoutes);
 // [휴가 관리 도메인] /api/leave/requests, /api/leave/requests/:id/review 처리
 app.use('/api/leave', leaveRoutes);
 
+// [캘린더 관리 도메인] /api/calendar/ 일정 CRUD 및 반복 일정 처리
+const calendarRoutes = require('./routes/calendarRoutes'); 
+app.use('/api/calendar', calendarRoutes);
+
 // ==========================================
 // 🚨 4. 라우터 하단 예외 및 에러 핸들러 미들웨어 (Error Handlers)
 // ==========================================

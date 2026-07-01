@@ -10,12 +10,14 @@ const cors = require('cors'); // 교차 출처 리소스 공유(CORS) 설정을 
 // ==========================================
 // 📦 1. 라우터 모듈 로드 구역 (Router Modules Load)
 // ==========================================
+// 各 도메인 레이어별로 분리된 라우팅 테이블을 불러옵니다.
 const authRoutes = require('./routes/authRoutes'); // [인증] 회원가입/로그인/토큰 관리 등
 const usersRoutes = require('./routes/usersRoutes'); // [사용자 관리] 대기자 조회 및 승인/반려 등
 const attendanceRoutes = require('./routes/attendanceRoutes'); // [출결] IP/시각 검증 기반 출퇴근 통제
 const leaveRoutes = require('./routes/leaveRoutes'); // [휴가] 연차 기안 및 결재/출결 동기화 연동
 const calendarRoutes = require('./routes/calendarRoutes'); // [캘린더 관리] 일정 CRUD 및 반복 일정 처리
 const noticeRoutes = require('./routes/noticeRoutes'); // [공지사항] 상단고정 및 하이브리드 첨부파일 통제
+const budgetRoutes = require('./routes/budgetRoutes'); // [연구비 회계] 예산 검증 및 지출 정산 통제
 
 // Express 애플리케이션 인스턴스를 생성합니다.
 const app = express();
@@ -55,6 +57,9 @@ app.use('/api/calendar', calendarRoutes);
 
 // [공지사항 도메인] /api/notices/ 상단고정 및 하이브리드 첨부파일 통제 처리
 app.use('/api/notices', noticeRoutes);
+
+// [연구비 회계 도메인] /api/budget/expenses 지출 기안 및 회계 정산 심사 처리
+app.use('/api/budget', budgetRoutes);
 
 // ==========================================
 // 🚨 4. 라우터 하단 예외 및 에러 핸들러 미들웨어 (Error Handlers)

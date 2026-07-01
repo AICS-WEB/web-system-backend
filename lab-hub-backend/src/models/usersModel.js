@@ -77,17 +77,17 @@ module.exports = UsersModel; // 다른 아키텍처 레이어(Controller)에서 
    * @description account_status가 'pending'인 가입 승인 대기자 목록을 최신순으로 조회합니다.
    * @returns {Promise<Array>} 대기자 유저 배열
    */
-  findPendingUsers: async () => {
-    // 비밀번호 해시 등 민감한 정보는 제외하고 행정 처리에 필요한 필드만 추출합니다.
-    const queryText = `
+findPendingUsers: async () => {
+  // 비밀번호 해시 등 민감한 정보는 제외하고 행정 처리에 필요한 필드만 추출합니다.
+  const queryText = `
       SELECT id, email, name, student_id, department, program, enrollment_year, created_at 
       FROM users 
       WHERE account_status = 'pending'
       ORDER BY created_at DESC;
     `;
-    const { rows } = await db.query(queryText);
-    return rows;
-  },
+  const { rows } = await db.query(queryText);
+  return rows;
+},
 
   /**
    * @function updateUserStatus
@@ -107,12 +107,12 @@ module.exports = UsersModel; // 다른 아키텍처 레이어(Controller)에서 
     return rows[0];
   },
 
-  /**
-   * @function findById
-   * @description 유저의 고유 식별 번호(id)로 단건 정보를 조회합니다.
-   */
-  findById: async (id) => {
-    const queryText = `SELECT id, email, name, role, account_status FROM users WHERE id = $1;`;
-    const { rows } = await db.query(queryText, [id]);
-    return rows[0];
-  }
+    /**
+     * @function findById
+     * @description 유저의 고유 식별 번호(id)로 단건 정보를 조회합니다.
+     */
+    findById: async (id) => {
+      const queryText = `SELECT id, email, name, role, account_status FROM users WHERE id = $1;`;
+      const { rows } = await db.query(queryText, [id]);
+      return rows[0];
+    }

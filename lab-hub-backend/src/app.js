@@ -23,6 +23,7 @@ const filesRoutes = require('./routes/filesRoutes'); // [파일 공유] URL(driv
 const procurementRoutes = require('./routes/procurementRoutes'); // [물품 구매] 자재·supplies 구매 기안 및 회계 심사 통제
 const credentialRoutes = require('./routes/credentialRoutes'); // [공용 크레덴셜] 연구실 공용 계정 및 패스워드 자산 통제
 const notificationRoutes = require('./routes/notificationRoutes'); // [시스템 알림] 알림 센터 장부 적재 및 읽음 제어 통제
+const applicationRoutes = require('./routes/applicationRoutes'); // [연구생 지원] 학부 연구생 입단 지원 및 선발 심사 통제
 
 // Express 애플리케이션 인스턴스를 생성합니다.
 const app = express();
@@ -80,6 +81,9 @@ app.use('/api/credentials', credentialRoutes);
 
 // [시스템 알림 센터 도메인] /api/notifications 알림 수신 내역 및 읽음 조치 통제 처리
 app.use('/api/notifications', notificationRoutes);
+
+// [연구생 지원 선발 도메인] /api/applications 입단 지원서 상신 및 선발 결재 심사 처리
+app.use('/api/applications', applicationRoutes);
 
 // ==========================================
 // 🚨 4. 라우터 하단 예외 및 에러 핸들러 미들웨어 (Error Handlers)

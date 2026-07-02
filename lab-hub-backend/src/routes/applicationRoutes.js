@@ -41,7 +41,7 @@ const submitRateLimiter = rateLimit({
     return res.status(429).json({
       success: false,
       data: null,
-      message: 'Too many submissions from this IP. Please try again later.',
+      message: '해당 IP에서 너무 많은 지원서가 제출되었습니다. 잠시 후 다시 시도해주세요.',
     });
   },
 });

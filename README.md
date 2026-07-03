@@ -61,3 +61,10 @@ ERD:
 2. 라이브러리 설치: `npm install`
 3. 환경 변수 설정: `.env` 파일을 생성하고 DB 접속 정보를 입력합니다.
 4. 서버 실행: `npm start` (또는 `nodemon src/index.js`)
+
+## 외부 홈페이지 연동용 퍼블릭 API 명세 (Public API Specification)
+
+외부 대중 및 학부생 공개 페이지(구성원, 논문, 파트너, 교수 정보, 이벤트) 렌더링을 위한 전용 엔드포인트 규격서입니다. 
+자세한 데이터 타입 및 JSON 응답 포맷은 아래 별도 마크다운 문서에 상세히 명세되어 있으니, 프론트엔드 연동 시 참고하시기 바랍니다.
+
+👉 [외부 홈페이지 퍼블릭 API 명세서 바로가기 (docs/publicApiSpec.md)](./docs/publicApiSpec.md)

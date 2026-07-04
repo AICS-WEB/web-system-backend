@@ -64,6 +64,51 @@ const ProcurementModel = {
     const { rows } = await db.query(queryText, values);
     return rows[0];
   },
+
+  /**
+   * @function updateToPurchased
+   * @description [관리자] approved 상태의 구매 요청을 purchased(구매완료)로 전이시킵니다.
+   *              purchased_by / purchased_at 을 함께 기록하며, 선택적으로 실제 지출 레코드(expense_id)와 연결합니다.
+   *              구매 담당자(purchasedBy)와 결재자(reviewer)는 서로 다를 수 있으므로 별도 컬럼으로 분리 저장됩니다.
+   * @param {number} requestId
+   * @param {number} purchasedBy - 구매 실행자(관리자)의 user id
+   * @param {number|null} expenseId - 이 구매에 연결된 expenses.id (선택)
+   */
+  updateToPurchased: async (requestId, purchasedBy, expenseId) => {
+    const queryText = `
+      UPDATE purchase_requests
+         SET status       = 'purchased'::purchase_status,
+             purchased_by = $2,
+             purchased_at = now(),
+             expense_id   = COALESCE($3, expense_id),
+             updated_at   = now()
+       WHERE id = $1
+      RETURNING id, item_name, quantity, status,
+                purchased_by, purchased_at, expense_id;
+    `;
+    const values = [requestId, purchasedBy, expenseId === undefined ? null : expenseId];
+    const { rows } = await db.query(queryText, values);
+    return rows[0];
+  },
+
+  /**
+   * @function updateToDelivered
+   * @description [관리자] purchased 상태의 구매 요청을 delivered(납품완료)로 전이시킵니다.
+   *              delivered_at 타임스탬프를 원자적으로 기록합니다.
+   *              스키마상 delivered_by 컬럼이 없어 납품 확인자 정보는 별도 로그가 아닌 시각 기반으로만 관리합니다.
+   */
+  updateToDelivered: async (requestId) => {
+    const queryText = `
+      UPDATE purchase_requests
+         SET status       = 'delivered'::purchase_status,
+             delivered_at = now(),
+             updated_at   = now()
+       WHERE id = $1
+      RETURNING id, item_name, quantity, status, delivered_at;
+    `;
+    const { rows } = await db.query(queryText, [requestId]);
+    return rows[0];
+  },
 };
 
 module.exports = ProcurementModel;

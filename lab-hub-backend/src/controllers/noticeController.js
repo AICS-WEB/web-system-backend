@@ -92,6 +92,34 @@ const NoticeController = {
   },
 
   /**
+   * @function listNotices
+   * @description [인증 유저] 공지사항 목록을 반환합니다.
+   *              - is_pinned=true 상단 고정 항목이 먼저, 그다음 최신 등록순.
+   *              - ?category= 쿼리로 카테고리 필터 지원 (allowed: general/important/account_info/schedule).
+   *              - 첨부파일은 목록에 포함하지 않고 attachment_count(개수)만 반환하여 페이로드를 최소화합니다.
+   */
+  listNotices: async (req, res) => {
+    try {
+      const { category } = req.query;
+
+      // notice_category ENUM 검증(잘못된 값 필터로 들어오면 400)
+      if (category !== undefined && category !== '' ) {
+        const allowedCategories = ['general', 'important', 'account_info', 'schedule'];
+        if (!allowedCategories.includes(category)) {
+          return fail(res, 400, '올바르지 않은 공지사항 카테고리 필터입니다.');
+        }
+      }
+
+      const notices = await NoticeModel.findAll({ category });
+      return success(res, { notices }, '공지사항 목록 조회가 완료되었습니다.');
+
+    } catch (error) {
+      console.error('공지사항 목록 조회 중 예외 에러 발생:', error);
+      return fail(res, 500, '서버 오류로 공지사항 목록을 조회하지 못했습니다.');
+    }
+  },
+
+  /**
    * @function getNoticeDetail
    * @description [인증 유저] 특정 공지사항을 상세 조회하며 원자적으로 조회수를 올리고, JOIN된 로우 배열을 단건 DTO 객체로 가공 반환합니다.
    */

@@ -23,6 +23,13 @@ router.post(
 );
 
 /**
+ * @route   GET /api/notices
+ * @desc    공지사항 목록 조회 (상단고정 우선, 카테고리 필터 지원). 첨부파일은 개수(attachment_count)만 반환
+ * @access  Private (연구실 승인 유저 전체 개방)
+ */
+router.get('/', authMiddleware, noticeController.listNotices);
+
+/**
  * @route   GET /api/notices/:id
  * @desc    공지사항 상세 조회 및 원자적 조회수(view_count) 1 증가 연산 처리
  * @access  Private (연구실 승인 유저 전체 개방)

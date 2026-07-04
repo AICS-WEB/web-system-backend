@@ -13,16 +13,13 @@ const { authMiddleware, requireRole } = require('../middlewares/authMiddleware')
 
 /**
  * ==========================================
- * 🔓 Public Routes (누구나 접근 가능)
- * ==========================================
- */
-router.post('/register', usersController.registerUser);
-router.post('/login', usersController.loginUser);
-
-/**
- * ==========================================
  * 🔒 Protected Routes (인증/인가 필요)
  * ==========================================
+ *
+ * NOTE: /register 와 /login 은 /api/auth 도메인으로 통일했습니다.
+ *       /api/auth 라우터가 Access(30분) + Refresh(14일) 이중 토큰 파이프라인을 완비하고 있어
+ *       사용자 관리(/api/users)는 리소스 자체(프로필/권한)에만 집중합니다.
+ *       구 usersController.registerUser / loginUser 는 참조되지 않으며 추후 정리 예정입니다.
  */
 
 /**

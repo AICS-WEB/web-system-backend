@@ -14,6 +14,15 @@ const { success, fail } = require('../utils/response');
 // 결재 review 에서 허용하는 상태값 (구매/납품 완료 처리는 별도 엔드포인트로 분리 권장)
 const VALID_REVIEW_STATUSES = ['approved', 'rejected'];
 
+// 상태 전이(advanceStatus)에서 허용하는 정합 전이 규칙.
+// 결재(pending → approved/rejected)와 분리하여 실물 흐름(구매/납품)만 통제합니다.
+//   approved  → purchased  (구매 실행)
+//   purchased → delivered  (납품 확정)
+const LEGAL_TRANSITIONS = {
+  approved:  'purchased',
+  purchased: 'delivered',
+};
+
 const ProcurementController = {
   /**
    * @function requestProcurement
@@ -62,6 +71,75 @@ const ProcurementController = {
     } catch (error) {
       console.error('물품 구매 신청 중 서버 예외 발생:', error);
       return fail(res, 500, '서버 오류로 물품 구매 신청에 실패했습니다.');
+    }
+  },
+
+  /**
+   * @function advanceStatus
+   * @description [관리자 전용] 결재 이후의 실물 흐름 상태(approved → purchased → delivered)를 전이시킵니다.
+   *              - approved  → purchased : 실제 구매 실행 시점. purchased_by/purchased_at 기록. expenseId(선택)로 지출 레코드 연결.
+   *              - purchased → delivered : 물건 납품 확인 시점. delivered_at 기록.
+   *              - 그 외 전이는 400 (예: pending에서 곧바로 purchased 등)
+   *
+   * Body:
+   *   - status     : 'purchased' | 'delivered' (필수)
+   *   - expenseId  : 정수 (선택, purchased 전이 시에만 유효). 이미 연결된 값이 있으면 유지, 없으면 세팅.
+   */
+  advanceStatus: async (req, res) => {
+    try {
+      const requestId = req.params.id;
+      const actorId = req.user.id;
+      const { status: targetStatus, expenseId } = req.body || {};
+
+      // [1] 필수 파라미터 검증
+      if (!targetStatus) {
+        return fail(res, 400, '전이할 상태값(status)은 필수입니다.');
+      }
+      if (!['purchased', 'delivered'].includes(targetStatus)) {
+        return fail(res, 400, '상태 전이는 purchased 또는 delivered만 가능합니다. 승인/반려는 /review 엔드포인트를 사용하세요.');
+      }
+      if (expenseId !== undefined && expenseId !== null && !Number.isInteger(Number(expenseId))) {
+        return fail(res, 400, 'expenseId는 정수여야 합니다.');
+      }
+
+      // [2] 대상 서류 실존 확인
+      const request = await ProcurementModel.findRequestById(requestId);
+      if (!request) {
+        return fail(res, 404, '존재하지 않는 물품 구매 신청서입니다.');
+      }
+
+      // [3] 정합 전이 규칙 검증 (현재 상태 → 목표 상태가 화이트리스트에 있어야 함)
+      const expectedNext = LEGAL_TRANSITIONS[request.status];
+      if (expectedNext !== targetStatus) {
+        return fail(
+          res,
+          400,
+          `현재 상태(${request.status})에서 ${targetStatus}(으)로는 전이할 수 없습니다. 허용 흐름: approved→purchased→delivered.`
+        );
+      }
+
+      // [4] 목표 상태에 맞는 원자적 Model 호출
+      let result;
+      if (targetStatus === 'purchased') {
+        result = await ProcurementModel.updateToPurchased(
+          requestId,
+          actorId,
+          expenseId === undefined || expenseId === null ? null : Number(expenseId)
+        );
+      } else {
+        // targetStatus === 'delivered'
+        result = await ProcurementModel.updateToDelivered(requestId);
+      }
+
+      const outcomeMessage = targetStatus === 'purchased'
+        ? `[${result.item_name}] 구매 처리가 완료되었습니다.`
+        : `[${result.item_name}] 납품이 확인되었습니다.`;
+
+      return success(res, { result }, outcomeMessage);
+
+    } catch (error) {
+      console.error('물품 구매 상태 전이 처리 중 서버 예외 에러:', error);
+      return fail(res, 500, '서버 오류로 상태 전이 처리에 실패했습니다.');
     }
   },
 

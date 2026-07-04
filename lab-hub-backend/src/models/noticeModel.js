@@ -67,6 +67,45 @@ const NoticeModel = {
   },
 
   /**
+   * @function findAll
+   * @description [목록 조회] 공지사항 마스터 리스트를 반환합니다.
+   *              - 상단 고정(is_pinned=true) 항목이 항상 상위로 정렬됩니다.
+   *              - 동률일 경우 최신 등록순(created_at DESC).
+   *              - 첨부파일 목록은 상세(:id) 응답에서만 반환하며, 목록에서는 개수(attachment_count)만 노출합니다.
+   * @param {Object} [filters]
+   * @param {string} [filters.category] - notice_category ENUM 하나로 필터
+   * @returns {Promise<Array>} 공지 마스터 요약 레코드 배열
+   */
+  findAll: async ({ category } = {}) => {
+    const conditions = [];
+    const values = [];
+
+    if (category !== undefined && category !== null && category !== '') {
+      values.push(category);
+      conditions.push(`n.category = $${values.length}`);
+    }
+
+    const whereClause = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+    const queryText = `
+      SELECT
+        n.id, n.title, n.category, n.is_pinned, n.view_count,
+        n.created_at, n.updated_at,
+        u.name AS author_name,
+        (
+          SELECT COUNT(*)::int
+            FROM notice_attachments a
+           WHERE a.notice_id = n.id
+        ) AS attachment_count
+        FROM notices n
+        LEFT JOIN users u ON n.author_id = u.id
+        ${whereClause}
+       ORDER BY n.is_pinned DESC, n.created_at DESC, n.id DESC;
+    `;
+    const { rows } = await db.query(queryText, values);
+    return rows;
+  },
+
+  /**
    * @function findNoticeDetailAndIncrementView
    * @description [동시성 방어 연산] 공지사항 조회 시 view_count를 원자적으로 즉시 1 증가시키고, 첨부파일 목록을 JOIN하여 반환합니다.
    * @param {number} noticeId - 조회 대상 공지사항 ID (PK)

@@ -29,4 +29,16 @@ router.put(
   procurementController.reviewProcurement
 );
 
+/**
+ * @route   PUT /api/procurement/requests/:id/status
+ * @desc    [관리자 전용] 결재 이후 실물 흐름 상태 전이 (approved→purchased, purchased→delivered)
+ * @access  Private (기장/랩장 및 교수 등급 전용 방어벽 배포)
+ */
+router.put(
+  '/requests/:id/status',
+  authMiddleware,
+  requireRole('manager', 'admin'),
+  procurementController.advanceStatus
+);
+
 module.exports = router; // app.js 글로벌 미들웨어 파이프라인에 마운트하기 위해 export합니다.

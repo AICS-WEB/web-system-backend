@@ -149,7 +149,7 @@ const NoticeController = {
         attachments: [] // 첨부파일 오브젝트 배열 서브 그룹 초기화
       };
 
-      // [알고리즘 2단계] LEFT JOIN 연산 특성에 따라 널(NULL) 행 유무를 분기하여 배열 매핑을 완성합니다.
+      // LEFT JOIN 연산 특성에 따라 널(NULL) 행 유무를 분기하여 배열 매핑을 완성합니다.
       rows.forEach(row => {
         if (row.attachment_id) {
           noticeDetail.attachments.push({

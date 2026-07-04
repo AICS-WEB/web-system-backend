@@ -4,7 +4,9 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "migrate": "node db/apply-migration.js",
+    "migrate:002": "node db/apply-migration.js db/migrations/002_public_site_tables.sql"
   },
   "keywords": [],
   "author": "",

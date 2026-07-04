@@ -28,6 +28,8 @@ const {
   publicRouter: publicApplicationRoutes, // [연구생 지원 - 공개] 외부 지원자 폼 제출 (rate limit 적용)
   adminRouter: applicationRoutes,        // [연구생 지원 - 관리자] 목록/상세/심사/삭제
 } = require('./routes/applicationRoutes');
+const adminContentRoutes = require('./routes/adminContentRoutes'); // [외부 홈페이지 - 관리자] 파트너/교수/이벤트/연구/강의 CRUD
+const publicRoutes = require('./routes/publicRoutes'); // [외부 홈페이지 - 공개] 멤버/논문/파트너/교수/이벤트/연구/강의 조회
 
 // Express 애플리케이션 인스턴스를 생성합니다.
 const app = express();
@@ -87,11 +89,17 @@ app.use('/api/credentials', credentialRoutes);
 app.use('/api/notifications', notificationRoutes);
 
 // [연구생 지원 - 공개 도메인] /api/public/applications 외부 지원자 폼 제출 (인증 불필요, rate limit 적용)
-// 관리자 라우터보다 먼저 등록하여 mount 경로 매칭 순서에 대한 오해를 줄입니다.
+// ⚠️ 반드시 /api/public 일반 공개 라우터보다 먼저 등록해야 매칭 순서 상 applications 요청이 여기로 흘러들어옵니다.
 app.use('/api/public/applications', publicApplicationRoutes);
+
+// [외부 홈페이지 - 공개 조회] /api/public 하위 멤버/논문/파트너/교수/이벤트/연구/강의 (인증 불필요)
+app.use('/api/public', publicRoutes);
 
 // [연구생 지원 선발 도메인] /api/applications 입단 지원서 목록/상세/심사/삭제 (관리자 전용)
 app.use('/api/applications', applicationRoutes);
+
+// [외부 홈페이지 - 관리자 콘텐츠] /api/admin 하위 파트너/교수/이벤트/연구/강의 CRUD (authMiddleware + requireRole)
+app.use('/api/admin', adminContentRoutes);
 
 // ==========================================
 // 🚨 4. 라우터 하단 예외 및 에러 핸들러 미들웨어 (Error Handlers)

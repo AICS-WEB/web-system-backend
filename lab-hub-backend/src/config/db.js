@@ -13,6 +13,12 @@ const pool = new Pool({
   database: process.env.DB_DATABASE,
   password: process.env.DB_PASSWORD,
   port: process.env.DB_PORT,
+  // Supabase 등 관리형 Postgres는 SSL 연결을 요구합니다.
+  // 호스트에 'supabase'가 포함되면 SSL을 켜고(인증서 체인은 완화), 로컬이면 끕니다.
+  // → .env 의 DB_HOST 만 바꿔 로컬/Supabase 를 오갈 수 있습니다.
+  ssl: (process.env.DB_HOST || '').includes('supabase')
+    ? { rejectUnauthorized: false }
+    : false,
 });
 
 

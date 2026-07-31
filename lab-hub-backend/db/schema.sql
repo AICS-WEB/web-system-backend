@@ -242,9 +242,12 @@ CREATE TABLE research_projects (
     id             SERIAL PRIMARY KEY,
     title          VARCHAR(300) NOT NULL,
     funding_agency VARCHAR(200),
+    program        VARCHAR(255),
     period         VARCHAR(100),
     role           VARCHAR(100),
     status         VARCHAR(50),
+    is_public      BOOLEAN NOT NULL DEFAULT false,
+    display_order  INT DEFAULT 0,
     created_at     TIMESTAMP NOT NULL DEFAULT now(),
     updated_at     TIMESTAMP NOT NULL DEFAULT now()
 );

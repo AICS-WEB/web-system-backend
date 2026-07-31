@@ -22,6 +22,7 @@ router.get('/partners',     publicController.listPartners);
 router.get('/professor',    publicController.getProfessor);
 router.get('/events',       publicController.listEvents);
 router.get('/research',     publicController.listResearchAreas);
+router.get('/research-projects', publicController.listResearchProjects);
 router.get('/lectures',     publicController.listLectures);
 
 module.exports = router; // app.js에서 /api/public 경로에 마운트됩니다.

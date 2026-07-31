@@ -139,9 +139,25 @@ const PublicModel = {
    */
   listResearchAreas: async () => {
     const q = `
-      SELECT id, title, tag, description, image_url, display_order
+      SELECT id, title, tag, description, image_url, display_order, topics
         FROM research_areas
        ORDER BY display_order ASC, id ASC;
+    `;
+    const { rows } = await db.query(q);
+    return rows;
+  },
+
+  /**
+   * @function listResearchProjects
+   * @description 공개 허용된 연구 프로젝트를 홈페이지 표시 순서로 반환합니다.
+   */
+  listResearchProjects: async () => {
+    const q = `
+      SELECT
+        id, title, funding_agency, program, period, role, status, display_order
+      FROM research_projects
+      WHERE is_public = true
+      ORDER BY display_order ASC, id ASC;
     `;
     const { rows } = await db.query(q);
     return rows;

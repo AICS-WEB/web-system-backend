@@ -105,6 +105,17 @@ const PublicController = {
   },
 
   /**
+   * @function listResearchProjects
+   * @description GET /api/public/research-projects — 공개 연구 프로젝트 목록.
+   */
+  listResearchProjects: async (req, res, next) => {
+    try {
+      const rows = await publicModel.listResearchProjects();
+      return success(res, rows);
+    } catch (err) { next(err); }
+  },
+
+  /**
    * @function listLectures
    * @description GET /api/public/lectures?semester=&year= — 강의 목록. 요일→시작시각 순 정렬.
    *              year 파라미터가 오면 정수 파싱을 시도하며 파싱 실패 시 400.

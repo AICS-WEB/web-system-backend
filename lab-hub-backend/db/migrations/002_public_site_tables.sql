@@ -22,6 +22,12 @@ ALTER TABLE publications
     ADD COLUMN IF NOT EXISTS subtitle  VARCHAR(255),
     ADD COLUMN IF NOT EXISTS image_url VARCHAR(255);
 
+-- 공개 연구 프로젝트 표시에 필요한 확장 컬럼
+ALTER TABLE research_projects
+    ADD COLUMN IF NOT EXISTS program       VARCHAR(255),
+    ADD COLUMN IF NOT EXISTS is_public     BOOLEAN NOT NULL DEFAULT false,
+    ADD COLUMN IF NOT EXISTS display_order INT DEFAULT 0;
+
 -- =====================================================================
 -- [2] partner_labs — 공동 연구실/파트너 링크 배너
 -- =====================================================================
@@ -87,6 +93,9 @@ CREATE TABLE IF NOT EXISTS research_areas (
     created_at     TIMESTAMP NOT NULL DEFAULT now(),
     updated_at     TIMESTAMP NOT NULL DEFAULT now()
 );
+
+ALTER TABLE research_areas
+    ADD COLUMN IF NOT EXISTS topics JSONB;
 
 CREATE INDEX IF NOT EXISTS idx_research_areas_display_order
     ON research_areas(display_order);

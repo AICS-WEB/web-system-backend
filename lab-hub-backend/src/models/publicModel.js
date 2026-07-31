@@ -53,13 +53,13 @@ const PublicModel = {
   /**
    * @function listPublications
    * @description 공개 표시가 허용된(is_public=true) 논문만 반환합니다.
-   *              프론트 카드 뷰용 요약 컬럼만 노출합니다. authors_text 등 상세는 제외.
+   *              공개 아카이브 표기에 필요한 저자, 제목, 게재처, 링크 컬럼만 노출합니다.
    */
   listPublications: async () => {
     const q = `
       SELECT
-        id, title, subtitle, venue, doi, image_url,
-        published_date, year, pub_type
+        id, title, subtitle, authors_text, venue, doi, image_url,
+        published_date, year, pub_type, status
       FROM publications
       WHERE is_public = true
       ORDER BY published_date DESC NULLS LAST, year DESC, id DESC;

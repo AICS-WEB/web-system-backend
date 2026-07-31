@@ -127,9 +127,32 @@ const PublicModel = {
    */
   listEvents: async () => {
     const q = `
-      SELECT id, event_name, event_date, location, description, event_image_url, created_at
-        FROM lab_events
-       ORDER BY event_date DESC, id DESC;
+      SELECT
+        e.id,
+        e.event_name,
+        e.event_date,
+        e.event_date_end,
+        e.event_type,
+        e.location,
+        e.description,
+        e.event_image_url,
+        e.display_order,
+        e.created_at,
+        COALESCE(
+          jsonb_agg(
+            jsonb_build_object(
+              'id', i.id,
+              'image_url', i.image_url,
+              'display_order', i.display_order
+            )
+            ORDER BY i.display_order ASC, i.id ASC
+          ) FILTER (WHERE i.id IS NOT NULL),
+          '[]'::jsonb
+        ) AS images
+      FROM lab_events e
+      LEFT JOIN lab_event_images i ON i.event_id = e.id
+      GROUP BY e.id
+      ORDER BY e.display_order ASC, e.event_date ASC, e.id ASC;
     `;
     const { rows } = await db.query(q);
     return rows;

@@ -87,7 +87,9 @@ const Professor = {
    */
   findFirst: async () => {
     const q = `
-      SELECT id, user_id, name, email, profile_image_url, career_history, updated_at
+      SELECT id, user_id, name, email, profile_image_url,
+             position, department, university, introduction,
+             education, career, research_focus, updated_at
         FROM professor_profile
        ORDER BY id ASC
        LIMIT 1;
@@ -106,31 +108,63 @@ const Professor = {
     return rows[0].cnt;
   },
 
-  createOne: async ({ userId, name, email, profileImageUrl, careerHistory }) => {
+  createOne: async ({
+    userId, name, email, profileImageUrl,
+    position, department, university, introduction,
+    education, career, researchFocus,
+  }) => {
     const q = `
       INSERT INTO professor_profile (
-        user_id, name, email, profile_image_url, career_history
-      ) VALUES ($1, $2, $3, $4, $5)
-      RETURNING id, user_id, name, email, profile_image_url, career_history, updated_at;
+        user_id, name, email, profile_image_url,
+        position, department, university, introduction,
+        education, career, research_focus
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10::jsonb, $11::jsonb)
+      RETURNING id, user_id, name, email, profile_image_url,
+                position, department, university, introduction,
+                education, career, research_focus, updated_at;
     `;
+    // education/career/research_focus 는 배열/객체이므로 JSON 문자열로 직렬화해야
+    // node-pg 가 Postgres 배열 리터럴로 오인하지 않고 jsonb 로 정상 저장됩니다.
+    const asJson = (v) => (v === undefined || v === null ? null : JSON.stringify(v));
     const { rows } = await db.query(q, [
       userId === undefined || userId === null ? null : userId,
       name, email,
       profileImageUrl || null,
-      careerHistory || null,
+      position || null,
+      department || null,
+      university || null,
+      introduction || null,
+      asJson(education),
+      asJson(career),
+      asJson(researchFocus),
     ]);
     return rows[0];
   },
 
   updateFirst: async (patch) => {
+    // JSONB 필드는 배열/객체이므로 patch 에 존재하면 JSON 문자열로 직렬화합니다.
+    // (node-pg 가 JS 배열을 Postgres 배열 리터럴로 변환하는 것을 방지)
+    const normalized = { ...patch };
+    for (const k of ['education', 'career', 'researchFocus']) {
+      if (Object.prototype.hasOwnProperty.call(normalized, k)
+          && normalized[k] !== null && normalized[k] !== undefined) {
+        normalized[k] = JSON.stringify(normalized[k]);
+      }
+    }
     const fieldMap = {
       userId: 'user_id',
       name: 'name',
       email: 'email',
       profileImageUrl: 'profile_image_url',
-      careerHistory: 'career_history',
+      position: 'position',
+      department: 'department',
+      university: 'university',
+      introduction: 'introduction',
+      education: 'education',
+      career: 'career',
+      researchFocus: 'research_focus',
     };
-    const { sets, values, nextIdx } = buildPatch(fieldMap, patch);
+    const { sets, values, nextIdx } = buildPatch(fieldMap, normalized);
     if (sets.length === 0) return await Professor.findFirst();
 
     sets.push(`updated_at = now()`);
@@ -139,7 +173,9 @@ const Professor = {
       UPDATE professor_profile
          SET ${sets.join(', ')}
        WHERE id = (SELECT id FROM professor_profile ORDER BY id ASC LIMIT 1)
-      RETURNING id, user_id, name, email, profile_image_url, career_history, updated_at;
+      RETURNING id, user_id, name, email, profile_image_url,
+                position, department, university, introduction,
+                education, career, research_focus, updated_at;
     `;
     const { rows } = await db.query(q, values);
     return rows[0];

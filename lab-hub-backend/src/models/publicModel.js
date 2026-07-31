@@ -90,7 +90,9 @@ const PublicModel = {
    */
   findProfessor: async () => {
     const q = `
-      SELECT id, user_id, name, email, profile_image_url, career_history, updated_at
+      SELECT id, user_id, name, email, profile_image_url,
+             position, department, university, introduction,
+             education, career, research_focus, updated_at
         FROM professor_profile
        ORDER BY id ASC
        LIMIT 1;

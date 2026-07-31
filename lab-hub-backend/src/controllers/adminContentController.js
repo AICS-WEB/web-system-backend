@@ -65,7 +65,11 @@ const AdminContentController = {
   // =====================================================================
   createProfessor: async (req, res, next) => {
     try {
-      const { userId, name, email, profileImageUrl, careerHistory } = req.body || {};
+      const {
+        userId, name, email, profileImageUrl,
+        position, department, university, introduction,
+        education, career, researchFocus,
+      } = req.body || {};
       if (!name || !email) {
         return fail(res, 400, 'name과 email은 필수입니다.');
       }
@@ -76,7 +80,11 @@ const AdminContentController = {
         return fail(res, 409, '이미 지도교수 프로필이 존재합니다. 수정은 PATCH /api/admin/professor를 사용하세요.');
       }
 
-      const row = await Professor.createOne({ userId, name, email, profileImageUrl, careerHistory });
+      const row = await Professor.createOne({
+        userId, name, email, profileImageUrl,
+        position, department, university, introduction,
+        education, career, researchFocus,
+      });
       return success(res, row, null, 201);
     } catch (err) { next(err); }
   },

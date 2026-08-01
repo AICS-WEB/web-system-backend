@@ -82,6 +82,19 @@ const PublicModel = {
     return rows;
   },
 
+  getSiteSettings: async () => {
+    const q = `
+      SELECT
+        id, lab_name, contact_email, university_name, university_url,
+        copyright_text, hero_video_url, hero_poster_url, address, updated_at
+      FROM site_settings
+      ORDER BY id ASC
+      LIMIT 1;
+    `;
+    const { rows } = await db.query(q);
+    return rows[0];
+  },
+
   /**
    * @function findProfessor
    * @description 저장된 첫 번째 프로필 레코드를 반환합니다.
@@ -183,6 +196,16 @@ const PublicModel = {
       FROM research_projects
       WHERE is_public = true
       ORDER BY display_order ASC, id ASC;
+    `;
+    const { rows } = await db.query(q);
+    return rows;
+  },
+
+  listTheses: async () => {
+    const q = `
+      SELECT id, year, author, title, display_order
+      FROM theses
+      ORDER BY display_order ASC, year DESC, id ASC;
     `;
     const { rows } = await db.query(q);
     return rows;

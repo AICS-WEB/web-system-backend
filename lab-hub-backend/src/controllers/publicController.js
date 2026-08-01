@@ -60,6 +60,14 @@ const PublicController = {
     } catch (err) { next(err); }
   },
 
+  getSiteSettings: async (req, res, next) => {
+    try {
+      const settings = await publicModel.getSiteSettings();
+      if (!settings) return fail(res, 404, '등록된 사이트 설정이 없습니다.');
+      return success(res, settings);
+    } catch (err) { next(err); }
+  },
+
   /**
    * @function getProfessor
    * @description GET /api/public/professor — 지도교수 프로필 1건 + 해당 user_id로 조인된 공개 논문 목록.
@@ -111,6 +119,13 @@ const PublicController = {
   listResearchProjects: async (req, res, next) => {
     try {
       const rows = await publicModel.listResearchProjects();
+      return success(res, rows);
+    } catch (err) { next(err); }
+  },
+
+  listTheses: async (req, res, next) => {
+    try {
+      const rows = await publicModel.listTheses();
       return success(res, rows);
     } catch (err) { next(err); }
   },

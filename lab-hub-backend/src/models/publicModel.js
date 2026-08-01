@@ -59,7 +59,7 @@ const PublicModel = {
     const q = `
       SELECT
         id, title, subtitle, authors_text, venue, doi, image_url,
-        published_date, year, pub_type, status
+        published_date, year, pub_type, status, is_featured
       FROM publications
       WHERE is_public = true
       ORDER BY published_date DESC NULLS LAST, year DESC, id DESC;

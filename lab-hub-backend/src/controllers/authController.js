@@ -16,6 +16,11 @@ const REFRESH_TOKEN_TTL_DAYS = Number(process.env.REFRESH_TOKEN_TTL_DAYS || 14);
 // Password Reset Token의 유효 기간(분). .env(RESET_TOKEN_TTL_MINUTES)로 재정의 가능하며 기본 60분입니다.
 const RESET_TOKEN_TTL_MINUTES = Number(process.env.RESET_TOKEN_TTL_MINUTES || 60);
 
+// 회원가입 폼에서 선택 가능한 program 값 목록.
+// 스키마 enum program_type에는 professor/other도 존재하지만, 이는 가입 폼에서 선택 불가한 내부 분류값이므로
+// 가입 단계에서 화이트리스트로 차단하여 잘못된 값이 DB enum 에러(500)로 번지는 것을 사전에 방지합니다.
+const SIGNUP_ALLOWED_PROGRAMS = ['undergrad', 'master', 'phd'];
+
 const AuthController = {
   /**
    * @function register
@@ -46,6 +51,19 @@ const AuthController = {
         return fail(res, 400, 'Missing required fields.');
       }
 
+      // program 값이 가입 허용 과정(undergrad/master/phd)에 속하는지 검증합니다.
+      // 화이트리스트로 걸러 DB의 program_type enum 위반이 500으로 표출되기 전에 사용자 친화적인 400으로 반환합니다.
+      if (!SIGNUP_ALLOWED_PROGRAMS.includes(program)) {
+        return fail(res, 400, `Invalid program. Allowed: ${SIGNUP_ALLOWED_PROGRAMS.join(', ')}.`);
+      }
+
+      // 입학년도(enrollment_year)는 INT 컬럼이므로 정수 정합성을 검증합니다.
+      // 프런트에서 숫자/문자 혼용으로 전송될 수 있으므로 정수 파싱 후 INSERT 시 정규화된 값을 사용합니다.
+      const parsedEnrollmentYear = Number.parseInt(enrollmentYear, 10);
+      if (!Number.isInteger(parsedEnrollmentYear)) {
+        return fail(res, 400, 'enrollmentYear must be an integer.');
+      }
+
       // 이메일/학번 UNIQUE 제약 위반을 사전에 차단하여 사용자 친화적인 메시지를 반환합니다.
       const existsEmail = await usersModel.findByEmail(email);
       if (existsEmail) return fail(res, 409, 'Email already registered.');
@@ -64,7 +82,7 @@ const AuthController = {
         studentId,
         department,
         program,
-        enrollmentYear,
+        enrollmentYear: parsedEnrollmentYear,
         researchTopic,
         profileImage,
         phone,

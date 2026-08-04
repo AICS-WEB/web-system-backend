@@ -18,6 +18,21 @@ const { authMiddleware, requireRole } = require('../middlewares/authMiddleware')
 router.post('/requests', authMiddleware, procurementController.requestProcurement);
 
 /**
+ * @route   GET /api/procurement/requests
+ * @desc    물품 구매 신청 목록 조회 (?status= 필터, 신청자 이름 JOIN, 최신순)
+ * @access  Private (로그인만 하면 role 구분 없이 전체 조회 가능 — 공용 물품 구매 내역)
+ * @note    정적 경로가 '/requests/:id' 파라미터 경로보다 먼저 등록되어야 매칭 우선순위가 보장됩니다.
+ */
+router.get('/requests', authMiddleware, procurementController.listRequests);
+
+/**
+ * @route   GET /api/procurement/requests/:id
+ * @desc    물품 구매 신청 단건 상세 조회 (신청자 이름 JOIN, 미존재 시 404)
+ * @access  Private (로그인만 하면 role 구분 없이 조회 가능)
+ */
+router.get('/requests/:id', authMiddleware, procurementController.getRequestDetail);
+
+/**
  * @route   PUT /api/procurement/requests/:id/review
  * @desc    [관리자 전용] 기안된 물품 구매 서류 최종 심사 확정 및 반려
  * @access  Private (기장/랩장 및 교수 등급 전용 방어벽 배포)

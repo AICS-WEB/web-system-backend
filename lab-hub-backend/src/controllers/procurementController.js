@@ -14,6 +14,9 @@ const { success, fail } = require('../utils/response');
 // 결재 review 에서 허용하는 상태값 (구매/납품 완료 처리는 별도 엔드포인트로 분리 권장)
 const VALID_REVIEW_STATUSES = ['approved', 'rejected'];
 
+// 목록 조회 status 필터에서 허용하는 purchase_status ENUM 전체 값 목록
+const VALID_STATUS_FILTERS = ['pending', 'approved', 'rejected', 'purchased', 'delivered'];
+
 // 상태 전이(advanceStatus)에서 허용하는 정합 전이 규칙.
 // 결재(pending → approved/rejected)와 분리하여 실물 흐름(구매/납품)만 통제합니다.
 //   approved  → purchased  (구매 실행)
@@ -179,6 +182,50 @@ const ProcurementController = {
     } catch (error) {
       console.error('물품 구매 심사 처리 중 서버 예외 에러:', error);
       return fail(res, 500, '서버 오류로 결재 심사 처리에 실패했습니다.');
+    }
+  },
+
+  /**
+   * @function listRequests
+   * @description [인증 유저 전체] 물품 구매 신청 목록을 신청자 이름(requester)과 함께 최신순으로 조회합니다.
+   *              공용 물품 구매 내역이므로 role 제한 없이 로그인한 사용자 누구나 전체 열람이 가능합니다.
+   *
+   * Query:
+   *   - status (선택) : pending/approved/rejected/purchased/delivered 중 하나. 미지정 시 전체 조회.
+   */
+  listRequests: async (req, res) => {
+    try {
+      const { status } = req.query;
+
+      // status가 주어진 경우에만 화이트리스트 검증. 비정상 값이면 400으로 방어합니다.
+      if (status !== undefined && !VALID_STATUS_FILTERS.includes(status)) {
+        return fail(res, 400, `유효하지 않은 상태 필터입니다. 허용 값: ${VALID_STATUS_FILTERS.join(', ')}.`);
+      }
+
+      const requests = await ProcurementModel.findAllRequests(status || null);
+      return success(res, requests);
+
+    } catch (error) {
+      console.error('물품 구매 목록 조회 중 서버 예외 에러:', error);
+      return fail(res, 500, '서버 오류로 물품 구매 목록 조회에 실패했습니다.');
+    }
+  },
+
+  /**
+   * @function getRequestDetail
+   * @description [인증 유저 전체] 물품 구매 신청 단건을 신청자 이름과 함께 상세 조회합니다. 존재하지 않는 id면 404.
+   */
+  getRequestDetail: async (req, res) => {
+    try {
+      const request = await ProcurementModel.findRequestDetailById(req.params.id);
+      if (!request) {
+        return fail(res, 404, '존재하지 않는 물품 구매 신청서입니다.');
+      }
+      return success(res, request);
+
+    } catch (error) {
+      console.error('물품 구매 상세 조회 중 서버 예외 에러:', error);
+      return fail(res, 500, '서버 오류로 물품 구매 상세 조회에 실패했습니다.');
     }
   }
 };

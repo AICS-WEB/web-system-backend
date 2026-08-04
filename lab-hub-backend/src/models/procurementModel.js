@@ -109,6 +109,48 @@ const ProcurementModel = {
     const { rows } = await db.query(queryText, [requestId]);
     return rows[0];
   },
+
+  /**
+   * @function findAllRequests
+   * @description 물품 구매 신청 전체 목록을 신청자 이름과 함께 최신순으로 조회합니다.
+   *              공용 물품 구매 내역이므로 역할 구분 없이 전체 열람 가능한 자산이며, 인가 제어는 라우터/컨트롤러 상위 레이어에서 담당합니다.
+   *              users 테이블과 JOIN하여 신청자 이름을 requester로, created_at을 requested_at으로 별칭 처리합니다.
+   * @param {string|null} status - 결재/실물 흐름 상태 필터 (pending/approved/rejected/purchased/delivered). null이면 전체 조회.
+   * @returns {Promise<Array>} 신청 목록 배열
+   */
+  findAllRequests: async (status = null) => {
+    // status가 주어지면 WHERE 절을 동적으로 부착합니다. 파라미터화 쿼리로 SQL Injection을 방어합니다.
+    const queryText = `
+      SELECT pr.id, pr.item_name, pr.quantity, pr.estimated_price, pr.purchase_url, pr.reason,
+             u.name AS requester, pr.status, pr.created_at AS requested_at
+        FROM purchase_requests pr
+        JOIN users u ON u.id = pr.user_id
+       ${status ? 'WHERE pr.status = $1' : ''}
+       ORDER BY pr.created_at DESC;
+    `;
+    const values = status ? [status] : [];
+    const { rows } = await db.query(queryText, values);
+    return rows;
+  },
+
+  /**
+   * @function findRequestDetailById
+   * @description 물품 구매 신청 단건을 신청자 이름과 함께 상세 조회합니다. (목록과 동일한 필드 구조 + JOIN)
+   *              무결성 검증용 findRequestById와 달리 requester/requested_at 별칭이 포함된 외부 응답용 뷰입니다.
+   * @param {number} id - 조회 대상 신청서 PK
+   * @returns {Promise<Object|undefined>} 신청 상세 또는 미존재 시 undefined
+   */
+  findRequestDetailById: async (id) => {
+    const queryText = `
+      SELECT pr.id, pr.item_name, pr.quantity, pr.estimated_price, pr.purchase_url, pr.reason,
+             u.name AS requester, pr.status, pr.created_at AS requested_at
+        FROM purchase_requests pr
+        JOIN users u ON u.id = pr.user_id
+       WHERE pr.id = $1;
+    `;
+    const { rows } = await db.query(queryText, [id]);
+    return rows[0];
+  },
 };
 
 module.exports = ProcurementModel;

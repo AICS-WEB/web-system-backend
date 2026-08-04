@@ -6,6 +6,44 @@
 const LeaveModel = require('../models/leaveModel');
 const { success, fail } = require('../utils/response'); // 팀 표준 공통 응답 유틸 (success/fail)
 
+/**
+ * @function buildBalancePayload
+ * @description 특정 유저의 연도별 연차 잔여일 응답 페이로드를 조립하는 내부 헬퍼입니다.
+ *              leave_balances 장부(총량)와 승인 완료된 leave_requests 소진 합계를 대조하여 잔여일을 산출합니다.
+ *              장부 레코드가 없을 경우 에러 대신 total/used/remaining을 모두 0으로 채운 안전 기본값을 반환합니다.
+ * @param {number} userId - 대상 유저 ID
+ * @param {number} year - 조회 연도
+ * @returns {Promise<Object>} { id, user_id, year, total_days, used_days, remaining_days }
+ */
+const buildBalancePayload = async (userId, year) => {
+  const balance = await LeaveModel.findBalanceByUserAndYear(userId, year);
+
+  // 장부 미존재 시: 신청 이력을 집계하지 않고 명세대로 전 항목 0의 안전 기본값을 즉시 반환합니다.
+  if (!balance) {
+    return {
+      id: null,
+      user_id: userId,
+      year,
+      total_days: 0,
+      used_days: 0,
+      remaining_days: 0,
+    };
+  }
+
+  // 장부 존재 시: 배정 총량과 승인된 신청서들의 소진 합계를 대조하여 잔여일을 계산합니다.
+  const totalDays = parseFloat(balance.total_days) || 0;
+  const usedDays = await LeaveModel.sumApprovedLeaveDaysByYear(userId, year);
+
+  return {
+    id: balance.id,
+    user_id: userId,
+    year,
+    total_days: totalDays,
+    used_days: usedDays,
+    remaining_days: totalDays - usedDays,
+  };
+};
+
 const LeaveController = {
   /**
    * @function requestLeave
@@ -149,6 +187,48 @@ const LeaveController = {
     } catch (error) {
       console.error('휴가 결재 심사 처리 중 서버 예외 에러:', error);
       return fail(res, 500, '서버 오류로 결재 심사 처리에 실패했습니다.');
+    }
+  },
+
+  /**
+   * @function getMyBalance
+   * @description [인증 유저] 토큰 주체 본인의 연차 잔여일을 조회합니다. (GET /api/leave/balance?year=YYYY)
+   *              year 미지정 시 현재 연도를 기본값으로 사용하며, 장부 미존재 시 0 기반 안전 기본값을 반환합니다.
+   */
+  getMyBalance: async (req, res) => {
+    try {
+      const userId = req.user.id; // 토큰에서 디코딩된 본인 식별자
+      // 쿼리 파라미터 year를 정수로 파싱하되, 누락/비정상 값이면 현재 연도로 폴백합니다.
+      const year = parseInt(req.query.year, 10) || new Date().getFullYear();
+
+      const payload = await buildBalancePayload(userId, year);
+      return success(res, payload);
+    } catch (error) {
+      console.error('연차 잔여일 조회(본인) 중 서버 예외 에러:', error);
+      return fail(res, 500, '서버 오류로 연차 잔여일 조회에 실패했습니다.');
+    }
+  },
+
+  /**
+   * @function getUserBalance
+   * @description [관리자 전용] 특정 유저의 연차 잔여일을 조회합니다. (GET /api/leave/balance/:userId?year=YYYY)
+   *              라우터 단에서 requireRole('manager','admin') 가드로 인가를 통제합니다.
+   */
+  getUserBalance: async (req, res) => {
+    try {
+      // 경로 파라미터 userId를 정수로 파싱하여 유효성을 검증합니다.
+      const userId = parseInt(req.params.userId, 10);
+      if (!userId) {
+        return fail(res, 400, '유효한 대상 유저 ID가 필요합니다.');
+      }
+
+      const year = parseInt(req.query.year, 10) || new Date().getFullYear();
+
+      const payload = await buildBalancePayload(userId, year);
+      return success(res, payload);
+    } catch (error) {
+      console.error('연차 잔여일 조회(관리자) 중 서버 예외 에러:', error);
+      return fail(res, 500, '서버 오류로 연차 잔여일 조회에 실패했습니다.');
     }
   }
 };

@@ -108,6 +108,35 @@ const LeaveModel = {
     const values = [userId, dateStr, attendanceStatus, leaveRequestId];
     const { rows } = await db.query(queryText, values);
     return rows[0];
+  },
+
+  /**
+   * @function sumApprovedLeaveDaysByYear
+   * @description 특정 유저의 해당 연도 기준 '승인(approved)' 완료된 휴가 신청서들의 소진 일수 총합을 산출합니다.
+   *              반차(half)는 0.5일로, 그 외(annual/other)는 (종료일 - 시작일 + 1)의 포괄 일수로 합산합니다.
+   *              연도 필터는 시작일(start_date)의 연도를 기준으로 판정하며, 승인 이력이 없으면 COALESCE로 0을 보장합니다.
+   * @param {number} userId - 유저 고유 ID (FK)
+   * @param {number} year - 집계 대상 연도 (예: 2026)
+   * @returns {Promise<number>} 소진 휴가 일수 총합 (소수점 포함)
+   */
+  sumApprovedLeaveDaysByYear: async (userId, year) => {
+    // DATE 간 뺄셈은 정수 일수를 반환하므로 +1로 시작·종료 당일을 포함한 포괄 일수를 계산합니다.
+    // 반차는 제약조건상 당일(start=end) 고정이므로 CASE에서 0.5로 명시 매핑합니다.
+    const queryText = `
+      SELECT COALESCE(SUM(
+        CASE
+          WHEN leave_type = 'half' THEN 0.5
+          ELSE (end_date - start_date + 1)
+        END
+      ), 0) AS used_days
+      FROM leave_requests
+      WHERE user_id = $1
+        AND status = 'approved'
+        AND EXTRACT(YEAR FROM start_date) = $2;
+    `;
+    const { rows } = await db.query(queryText, [userId, year]);
+    // 집계 결과는 문자열(numeric)로 반환될 수 있으므로 안전하게 실수형으로 변환하여 반환합니다.
+    return parseFloat(rows[0].used_days) || 0;
   }
 };
 

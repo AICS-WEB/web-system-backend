@@ -25,8 +25,28 @@ router.post('/requests', authMiddleware, leaveController.requestLeave);
 router.put(
   '/requests/:id/review', 
   authMiddleware, 
-  requireRole('manager', 'admin'), 
+  requireRole('manager', 'admin'),
   leaveController.reviewLeave
+);
+
+/**
+ * @route   GET /api/leave/balance
+ * @desc    [본인] 토큰 주체의 연차 잔여일 조회 (?year=YYYY, 기본값 현재 연도)
+ * @access  Private (토큰 인증 필수)
+ * @note    정적 경로가 '/balance/:userId' 파라미터 경로보다 반드시 먼저 등록되어야 매칭 우선순위가 보장됩니다.
+ */
+router.get('/balance', authMiddleware, leaveController.getMyBalance);
+
+/**
+ * @route   GET /api/leave/balance/:userId
+ * @desc    [관리자 전용] 특정 유저의 연차 잔여일 조회 (?year=YYYY, 기본값 현재 연도)
+ * @access  Private (기장/랩장 및 교수 등급 전용)
+ */
+router.get(
+  '/balance/:userId',
+  authMiddleware,
+  requireRole('manager', 'admin'),
+  leaveController.getUserBalance
 );
 
 module.exports = router; // app.js 글로벌 미들웨어 파이프라인에 탑재하기 위해 export합니다.

@@ -41,10 +41,15 @@ const app = express();
 // 요청 본문(JSON)을 파싱하여 req.body에 안전하게 바인딩하기 위한 내장 미들웨어를 등록합니다.
 app.use(express.json());
 
-// CORS 미들웨어를 등록합니다. 허용 출처는 환경 변수(CORS_ORIGIN)로 제어하며, 없을 시 전체 개방합니다.
+// CORS 미들웨어를 등록합니다. CORS_ORIGIN은 쉼표로 구분한 복수 출처를 지원하며, 없을 시 전체 개방합니다.
+const allowedOrigins = (process.env.CORS_ORIGIN || '')
+  .split(',')
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+
 app.use(
   cors({
-    origin: process.env.CORS_ORIGIN || '*',
+    origin: allowedOrigins.length ? allowedOrigins : '*',
   })
 );
 

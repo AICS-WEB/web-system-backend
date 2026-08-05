@@ -9,6 +9,7 @@ const authModel = require('../models/authModel'); // refresh/reset 토큰 및 �
 const bcryptUtils = require('../utils/bcryptUtils'); // 평문 비밀번호 해시·비교 유틸리티.
 const jwtUtils = require('../utils/jwt'); // Access Token 발급 및 불투명 토큰 생성·해시 유틸리티.
 const { success, fail } = require('../utils/response'); // 표준 응답 포맷 헬퍼.
+const mailer = require('../utils/mailer'); // SMTP 이메일 발송 유틸리티(비밀번호 재설정 링크 전달).
 
 // Refresh Token의 유효 기간(일). .env(REFRESH_TOKEN_TTL_DAYS)로 재정의 가능하며 기본 14일입니다.
 const REFRESH_TOKEN_TTL_DAYS = Number(process.env.REFRESH_TOKEN_TTL_DAYS || 14);
@@ -234,8 +235,15 @@ const AuthController = {
         expiresAt,
       });
 
-      // 개발 환경에서는 응답에 원문 토큰을 노출하여 수동 테스트를 돕습니다.
-      // TODO: 운영 환경에서는 본 분기를 제거하고 이메일 발송 서비스를 통해 전달해야 합니다.
+      // 재설정 링크 이메일 발송. 전송 실패가 사용자 응답을 막지 않도록(계정 존재 여부 비노출) try/catch로 격리합니다.
+      try {
+        await mailer.sendPasswordResetEmail(user.email, tokenPlain);
+      } catch (mailErr) {
+        console.error('[auth] 비밀번호 재설정 메일 발송 실패:', mailErr.message);
+      }
+
+      // 개발 환경(NODE_ENV≠production)에서는 응답에 원문 토큰을 노출하여 수동 테스트를 돕습니다.
+      // 운영 환경에서는 토큰을 노출하지 않고 오직 이메일로만 전달됩니다.
       const payload = { sent: true };
       if (process.env.NODE_ENV !== 'production') {
         payload.resetToken = tokenPlain;

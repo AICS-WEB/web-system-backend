@@ -56,6 +56,91 @@ const AttendanceModel = {
     `;
     const { rows } = await db.query(queryText, [id]);
     return rows[0];
+  },
+
+  /**
+   * @function findRecords
+   * @description 출결 기록 목록을 신청자 이름(user_name)과 함께 조회합니다. 선택적 필터(userId/date/status)를 동적으로 결합합니다.
+   *              users 테이블과 JOIN하여 u.name을 user_name으로 노출하며, 최신 일자·이름 순으로 정렬합니다.
+   * @param {Object} filters - { userId?, date?, status? } 각 항목은 선택이며, 주어진 것만 WHERE 조건에 결합됩니다.
+   * @returns {Promise<Array>} 출결 기록 배열
+   */
+  findRecords: async ({ userId, date, status } = {}) => {
+    // 동적 WHERE 절: 전달된 필터만 파라미터화하여 안전하게 결합합니다.
+    const conditions = [];
+    const values = [];
+    if (userId) { values.push(userId); conditions.push(`a.user_id = $${values.length}`); }
+    if (date)   { values.push(date);   conditions.push(`a.date = $${values.length}`); }
+    if (status) { values.push(status); conditions.push(`a.status = $${values.length}`); }
+
+    const whereClause = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+
+    const queryText = `
+      SELECT a.id, a.user_id, u.name AS user_name, a.date,
+             a.check_in, a.check_out, a.status, a.leave_request_id, a.created_at, a.updated_at
+        FROM attendance a
+        JOIN users u ON u.id = a.user_id
+        ${whereClause}
+       ORDER BY a.date DESC, u.name ASC;
+    `;
+    const { rows } = await db.query(queryText, values);
+    return rows;
+  },
+
+  /**
+   * @function findRecordById
+   * @description 출결 기록 단건을 user_name JOIN과 함께 조회합니다. (관리자 수정 전 실존 검증 및 응답용)
+   * @param {number} id - attendance 레코드 PK
+   * @returns {Promise<Object|undefined>} 출결 기록 또는 미존재 시 undefined
+   */
+  findRecordById: async (id) => {
+    const queryText = `
+      SELECT a.id, a.user_id, u.name AS user_name, a.date,
+             a.check_in, a.check_out, a.status, a.leave_request_id, a.created_at, a.updated_at
+        FROM attendance a
+        JOIN users u ON u.id = a.user_id
+       WHERE a.id = $1;
+    `;
+    const { rows } = await db.query(queryText, [id]);
+    return rows[0];
+  },
+
+  /**
+   * @function adminUpdateRecord
+   * @description [관리자] 출결 기록의 status/check_in/check_out을 부분 수정합니다.
+   *              전달된 필드만 동적으로 SET 하며(미전달 필드는 보존), 값이 명시적으로 null이면 해당 컬럼을 NULL로 비웁니다(예: 결석 처리 시 시각 초기화).
+   * @param {number} id - attendance 레코드 PK
+   * @param {Object} fields - { status?, check_in?, check_out? } 중 수정할 항목만 포함
+   * @returns {Promise<Object|undefined>} 수정된 레코드 또는 미존재 시 undefined
+   */
+  adminUpdateRecord: async (id, fields) => {
+    // 화이트리스트 컬럼만 동적 SET 절로 구성합니다. (호출부 컨트롤러에서 값 검증을 마친 상태)
+    const allowed = ['status', 'check_in', 'check_out'];
+    const setClauses = [];
+    const values = [];
+    for (const key of allowed) {
+      if (Object.prototype.hasOwnProperty.call(fields, key)) {
+        values.push(fields[key]);
+        setClauses.push(`${key} = $${values.length}`);
+      }
+    }
+
+    // 수정할 필드가 하나도 없으면 상위(컨트롤러)에서 차단하지만, 방어적으로 현재 레코드를 그대로 반환합니다.
+    if (setClauses.length === 0) {
+      return AttendanceModel.findRecordById(id);
+    }
+
+    setClauses.push(`updated_at = now()`);
+    values.push(id); // 마지막 파라미터는 WHERE의 id
+
+    const queryText = `
+      UPDATE attendance
+         SET ${setClauses.join(', ')}
+       WHERE id = $${values.length}
+      RETURNING id, user_id, date, check_in, check_out, status, leave_request_id, updated_at;
+    `;
+    const { rows } = await db.query(queryText, values);
+    return rows[0];
   }
 };
 

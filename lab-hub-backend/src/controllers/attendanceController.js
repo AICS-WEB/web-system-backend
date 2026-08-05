@@ -9,6 +9,9 @@ const { success, fail } = require('../utils/response'); // 팀 표준 공통 응
 // 연구실의 보안 화이트리스트 공인 IP 주소를 환경 변수에서 로드합니다.
 const LAB_IP = process.env.LAB_WHITE_LIST_IP || '123.45.67.89';
 
+// attendance_status ENUM 전체 값. 목록 status 필터 및 관리자 수정 시 화이트리스트 검증에 사용합니다.
+const VALID_ATTENDANCE_STATUSES = ['present', 'late', 'absent', 'leave', 'half_leave'];
+
 const AttendanceController = {
   /**
    * @function checkIn
@@ -94,6 +97,86 @@ const AttendanceController = {
     } catch (error) {
       console.error('퇴근 체크아웃 비즈니스 로직 예외 에러:', error);
       return fail(res, 500, '서버 오류로 퇴근 처리에 실패했습니다.');
+    }
+  },
+
+  /**
+   * @function listRecords
+   * @description [인증 유저 전체] 출결 기록 목록을 신청자 이름(user_name)과 함께 조회합니다. 연구실 공용 출결 현황판이므로 role 구분 없이 열람 가능합니다.
+   *
+   * Query (모두 선택):
+   *   - userId : 특정 유저의 기록만
+   *   - date   : 특정 일자(YYYY-MM-DD)만
+   *   - status : present/late/absent/leave/half_leave 중 하나
+   */
+  listRecords: async (req, res) => {
+    try {
+      const { userId, date, status } = req.query;
+
+      // status가 주어진 경우에만 화이트리스트 검증. 비정상 값이면 400.
+      if (status !== undefined && !VALID_ATTENDANCE_STATUSES.includes(status)) {
+        return fail(res, 400, `유효하지 않은 상태 필터입니다. 허용 값: ${VALID_ATTENDANCE_STATUSES.join(', ')}.`);
+      }
+
+      const records = await AttendanceModel.findRecords({
+        userId: userId || null,
+        date: date || null,
+        status: status || null,
+      });
+      return success(res, records);
+
+    } catch (error) {
+      console.error('출결 기록 목록 조회 중 서버 예외 에러:', error);
+      return fail(res, 500, '서버 오류로 출결 기록 조회에 실패했습니다.');
+    }
+  },
+
+  /**
+   * @function adminUpdateRecord
+   * @description [관리자 전용] 특정 출결 기록의 status/check_in/check_out을 수정합니다. (라우터에서 requireRole 가드)
+   *              전달된 필드만 반영하며, check_in/check_out에 빈 문자열/null을 주면 해당 시각을 NULL로 초기화합니다(예: 결석 처리).
+   *
+   * Body (모두 선택, 최소 1개 필요):
+   *   - status    : attendance_status ENUM
+   *   - checkIn   : ISO 타임스탬프 문자열 또는 null/"" (초기화)
+   *   - checkOut  : ISO 타임스탬프 문자열 또는 null/"" (초기화)
+   */
+  adminUpdateRecord: async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { status, checkIn, checkOut } = req.body || {};
+
+      // [1] 최소 1개 이상의 수정 대상 필드가 있어야 합니다.
+      const hasStatus = status !== undefined;
+      const hasCheckIn = checkIn !== undefined;
+      const hasCheckOut = checkOut !== undefined;
+      if (!hasStatus && !hasCheckIn && !hasCheckOut) {
+        return fail(res, 400, '수정할 필드(status, checkIn, checkOut) 중 최소 하나는 전달해야 합니다.');
+      }
+
+      // [2] status 화이트리스트 검증
+      if (hasStatus && !VALID_ATTENDANCE_STATUSES.includes(status)) {
+        return fail(res, 400, `유효하지 않은 상태값입니다. 허용 값: ${VALID_ATTENDANCE_STATUSES.join(', ')}.`);
+      }
+
+      // [3] 대상 레코드 실존 확인
+      const existing = await AttendanceModel.findRecordById(id);
+      if (!existing) {
+        return fail(res, 404, '존재하지 않는 출결 기록입니다.');
+      }
+
+      // [4] 전달된 필드만 정규화하여 부분 수정 객체 구성 (빈 문자열은 NULL로 취급하여 시각 초기화 허용)
+      const fields = {};
+      if (hasStatus) fields.status = status;
+      if (hasCheckIn) fields.check_in = checkIn === '' ? null : checkIn;
+      if (hasCheckOut) fields.check_out = checkOut === '' ? null : checkOut;
+
+      const updated = await AttendanceModel.adminUpdateRecord(id, fields);
+      return success(res, updated, '출결 기록이 수정되었습니다.');
+
+    } catch (error) {
+      console.error('출결 기록 관리자 수정 중 서버 예외 에러:', error);
+      return fail(res, 500, '서버 오류로 출결 기록 수정에 실패했습니다.');
     }
   }
 };

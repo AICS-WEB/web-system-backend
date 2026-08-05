@@ -192,7 +192,8 @@ const PublicModel = {
   listResearchProjects: async () => {
     const q = `
       SELECT
-        id, title, funding_agency, program, period, role, status, display_order
+        id, title, funding_agency, program, start_date, end_date, owner,
+        role, status, display_order
       FROM research_projects
       WHERE is_public = true
       ORDER BY display_order ASC, id ASC;

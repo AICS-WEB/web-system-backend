@@ -43,4 +43,40 @@ router.get('/admin-dashboard', authMiddleware, requireRole('manager', 'admin'), 
   );
 });
 
+/**
+ * @route  GET /api/users/pending
+ * @desc   [관리자 전용] 가입 승인 대기(pending) 상태 유저 목록 조회
+ * @access Private (manager/admin)
+ */
+router.get(
+  '/pending',
+  authMiddleware,
+  requireRole('manager', 'admin'),
+  usersController.getPendingUsers
+);
+
+/**
+ * @route  PATCH /api/users/:id/approve
+ * @desc   [관리자 전용] 특정 가입 신청 건을 승인(approved) 처리
+ * @access Private (manager/admin)
+ */
+router.patch(
+  '/:id/approve',
+  authMiddleware,
+  requireRole('manager', 'admin'),
+  usersController.approveUser
+);
+
+/**
+ * @route  PATCH /api/users/:id/reject
+ * @desc   [관리자 전용] 특정 가입 신청 건을 반려(rejected) 처리
+ * @access Private (manager/admin)
+ */
+router.patch(
+  '/:id/reject',
+  authMiddleware,
+  requireRole('manager', 'admin'),
+  usersController.rejectUser
+);
+
 module.exports = router;

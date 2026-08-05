@@ -137,6 +137,78 @@ const LeaveModel = {
     const { rows } = await db.query(queryText, [userId, year]);
     // 집계 결과는 문자열(numeric)로 반환될 수 있으므로 안전하게 실수형으로 변환하여 반환합니다.
     return parseFloat(rows[0].used_days) || 0;
+  },
+
+  /**
+   * @function findRequests
+   * @description 휴가 신청 목록을 신청자 이름(user_name)과 함께 조회합니다. 선택적 필터(userId/status)를 동적으로 결합합니다.
+   *              users 테이블과 JOIN하여 u.name을 user_name으로, created_at을 requested_at으로 별칭 처리하며 최신순 정렬합니다.
+   * @param {Object} filters - { userId?, status? } 각 항목은 선택이며 주어진 것만 WHERE 조건에 결합됩니다.
+   * @returns {Promise<Array>} 휴가 신청 목록 배열
+   */
+  findRequests: async ({ userId, status } = {}) => {
+    const conditions = [];
+    const values = [];
+    if (userId) { values.push(userId); conditions.push(`lr.user_id = $${values.length}`); }
+    if (status) { values.push(status); conditions.push(`lr.status = $${values.length}`); }
+    const whereClause = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+
+    const queryText = `
+      SELECT lr.id, lr.user_id, u.name AS user_name, lr.leave_type, lr.half_period,
+             lr.start_date, lr.end_date, lr.reason, lr.status, lr.reject_reason,
+             lr.reviewed_by, lr.reviewed_at, lr.created_at AS requested_at
+        FROM leave_requests lr
+        JOIN users u ON u.id = lr.user_id
+        ${whereClause}
+       ORDER BY lr.created_at DESC;
+    `;
+    const { rows } = await db.query(queryText, values);
+    return rows;
+  },
+
+  /**
+   * @function updateRequest
+   * @description [본인] 아직 결재 전(pending)인 휴가 신청서의 내용(유형/반차/기간/사유)을 수정합니다.
+   *              전달된 필드만 동적으로 SET 하며, 소유권/상태 검증은 상위 컨트롤러에서 선행합니다.
+   * @param {number} id - 휴가 신청 PK
+   * @param {Object} fields - { leave_type?, half_period?, start_date?, end_date?, reason? } 중 수정 항목만
+   * @returns {Promise<Object|undefined>} 수정된 레코드
+   */
+  updateRequest: async (id, fields) => {
+    const allowed = ['leave_type', 'half_period', 'start_date', 'end_date', 'reason'];
+    const setClauses = [];
+    const values = [];
+    for (const key of allowed) {
+      if (Object.prototype.hasOwnProperty.call(fields, key)) {
+        values.push(fields[key]);
+        setClauses.push(`${key} = $${values.length}`);
+      }
+    }
+    if (setClauses.length === 0) {
+      return LeaveModel.findRequestById(id);
+    }
+    setClauses.push(`updated_at = now()`);
+    values.push(id);
+
+    const queryText = `
+      UPDATE leave_requests
+         SET ${setClauses.join(', ')}
+       WHERE id = $${values.length}
+      RETURNING id, user_id, leave_type, half_period, start_date, end_date, reason, status, updated_at;
+    `;
+    const { rows } = await db.query(queryText, values);
+    return rows[0];
+  },
+
+  /**
+   * @function deleteRequest
+   * @description 휴가 신청서를 삭제합니다. 소유권/상태 검증은 상위 컨트롤러에서 선행합니다.
+   * @param {number} id - 휴가 신청 PK
+   * @returns {Promise<Object|undefined>} 삭제된 레코드의 id
+   */
+  deleteRequest: async (id) => {
+    const { rows } = await db.query('DELETE FROM leave_requests WHERE id = $1 RETURNING id;', [id]);
+    return rows[0];
   }
 };
 

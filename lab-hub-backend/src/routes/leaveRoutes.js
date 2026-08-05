@@ -18,6 +18,27 @@ const { authMiddleware, requireRole } = require('../middlewares/authMiddleware')
 router.post('/requests', authMiddleware, leaveController.requestLeave);
 
 /**
+ * @route   GET /api/leave/requests
+ * @desc    휴가 신청 목록 조회 (?status= 필터, user_name JOIN). 관리자는 전체(+?userId=), 일반 유저는 본인 것만.
+ * @access  Private (토큰 인증 필수)
+ */
+router.get('/requests', authMiddleware, leaveController.listRequests);
+
+/**
+ * @route   PATCH /api/leave/requests/:id
+ * @desc    [본인] 결재 전(pending) 휴가 신청서 내용 수정
+ * @access  Private (신청 본인)
+ */
+router.patch('/requests/:id', authMiddleware, leaveController.updateRequest);
+
+/**
+ * @route   DELETE /api/leave/requests/:id
+ * @desc    휴가 신청서 삭제 (본인은 pending만, manager/admin은 상태 무관)
+ * @access  Private (토큰 인증 필수)
+ */
+router.delete('/requests/:id', authMiddleware, leaveController.deleteRequest);
+
+/**
  * @route   PUT /api/leave/requests/:id/review
  * @desc    [관리자 전용] 특정 휴가 기안서 최종 승인/반려 심사 및 출결 테이블 자동 업서트 연동
  * @access  Private (기장/랩장 및 교수 등급 전용 방어벽 배포)

@@ -6,6 +6,11 @@
 const LeaveModel = require('../models/leaveModel');
 const { success, fail } = require('../utils/response'); // 팀 표준 공통 응답 유틸 (success/fail)
 
+// leave_type / leave_status ENUM 값. 목록 필터 및 수정 시 화이트리스트 검증에 사용합니다.
+const VALID_LEAVE_TYPES = ['annual', 'half', 'other'];
+const VALID_HALF_PERIODS = ['am', 'pm'];
+const VALID_LEAVE_STATUSES = ['pending', 'approved', 'rejected'];
+
 /**
  * @function buildBalancePayload
  * @description 특정 유저의 연도별 연차 잔여일 응답 페이로드를 조립하는 내부 헬퍼입니다.
@@ -229,6 +234,132 @@ const LeaveController = {
     } catch (error) {
       console.error('연차 잔여일 조회(관리자) 중 서버 예외 에러:', error);
       return fail(res, 500, '서버 오류로 연차 잔여일 조회에 실패했습니다.');
+    }
+  },
+
+  /**
+   * @function listRequests
+   * @description [인증 유저] 휴가 신청 목록을 신청자 이름(user_name)과 함께 조회합니다.
+   *              - manager/admin: 전체 조회 가능. ?userId=로 특정인 필터링 허용.
+   *              - 일반 member: 본인 신청서만 조회 가능(토큰의 id로 강제 필터링, ?userId 무시).
+   *              공통적으로 ?status= 필터를 지원합니다.
+   */
+  listRequests: async (req, res) => {
+    try {
+      const { status, userId: queryUserId } = req.query;
+      const isAdmin = req.user.role === 'manager' || req.user.role === 'admin';
+
+      // status 필터 화이트리스트 검증
+      if (status !== undefined && !VALID_LEAVE_STATUSES.includes(status)) {
+        return fail(res, 400, `유효하지 않은 상태 필터입니다. 허용 값: ${VALID_LEAVE_STATUSES.join(', ')}.`);
+      }
+
+      // 관리자면 요청한 userId(선택)를, 일반 유저면 본인 id를 강제 적용해 타인 신청서 열람을 차단합니다.
+      const effectiveUserId = isAdmin ? (queryUserId || null) : req.user.id;
+
+      const requests = await LeaveModel.findRequests({
+        userId: effectiveUserId,
+        status: status || null,
+      });
+      return success(res, requests);
+    } catch (error) {
+      console.error('휴가 신청 목록 조회 중 서버 예외 에러:', error);
+      return fail(res, 500, '서버 오류로 휴가 신청 목록 조회에 실패했습니다.');
+    }
+  },
+
+  /**
+   * @function updateRequest
+   * @description [본인] 아직 결재 전(pending)인 자신의 휴가 신청서를 수정합니다.
+   *              소유자 검증 + pending 상태 검증을 통과해야 하며, 전달된 필드만 반영합니다.
+   *
+   * Body (모두 선택, 최소 1개): leaveType, halfPeriod, startDate, endDate, reason
+   */
+  updateRequest: async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { leaveType, halfPeriod, startDate, endDate, reason } = req.body || {};
+
+      // [1] 대상 신청서 실존 확인
+      const existing = await LeaveModel.findRequestById(id);
+      if (!existing) {
+        return fail(res, 404, '존재하지 않는 휴가 신청서입니다.');
+      }
+
+      // [2] 소유권 검증: 본인 신청서만 수정 가능 (문자열/숫자 혼용 대비 == 비교)
+      if (String(existing.user_id) !== String(req.user.id)) {
+        return fail(res, 403, '본인의 휴가 신청서만 수정할 수 있습니다.');
+      }
+
+      // [3] 상태 검증: 이미 결재된(approved/rejected) 건은 수정 불가
+      if (existing.status !== 'pending') {
+        return fail(res, 400, '이미 결재가 완료된 신청서는 수정할 수 없습니다.');
+      }
+
+      // [4] 수정 필드 정규화 및 값 검증
+      const fields = {};
+      if (leaveType !== undefined) {
+        if (!VALID_LEAVE_TYPES.includes(leaveType)) {
+          return fail(res, 400, `유효하지 않은 휴가 유형입니다. 허용 값: ${VALID_LEAVE_TYPES.join(', ')}.`);
+        }
+        fields.leave_type = leaveType;
+      }
+      if (halfPeriod !== undefined) {
+        // 반차 구분은 am/pm 또는 비반차의 경우 null 허용
+        if (halfPeriod !== null && halfPeriod !== '' && !VALID_HALF_PERIODS.includes(halfPeriod)) {
+          return fail(res, 400, `반차 구분은 ${VALID_HALF_PERIODS.join('/')} 또는 빈 값이어야 합니다.`);
+        }
+        fields.half_period = (halfPeriod === '' ? null : halfPeriod);
+      }
+      if (startDate !== undefined) fields.start_date = startDate;
+      if (endDate !== undefined) fields.end_date = endDate;
+      if (reason !== undefined) fields.reason = reason;
+
+      if (Object.keys(fields).length === 0) {
+        return fail(res, 400, '수정할 필드를 최소 하나 이상 전달해야 합니다.');
+      }
+
+      // 참고: 반차/기간 정합성 및 잔여일 재검증은 기안(requestLeave) 수준까지는 수행하지 않습니다.
+      // DB의 chk_half_logic CHECK 제약이 최종 방어선으로 동작하며, 위반 시 글로벌 에러 핸들러가 처리합니다.
+      const updated = await LeaveModel.updateRequest(id, fields);
+      return success(res, updated, '휴가 신청서가 수정되었습니다.');
+    } catch (error) {
+      console.error('휴가 신청서 수정 중 서버 예외 에러:', error);
+      return fail(res, 500, '서버 오류로 휴가 신청서 수정에 실패했습니다.');
+    }
+  },
+
+  /**
+   * @function deleteRequest
+   * @description 휴가 신청서를 삭제합니다.
+   *              - 본인: 자신의 pending 신청서만 삭제 가능(결재된 건은 출결 동기화 이력이 있어 삭제 불가).
+   *              - manager/admin: 상태 무관하게 삭제 가능.
+   */
+  deleteRequest: async (req, res) => {
+    try {
+      const { id } = req.params;
+      const isAdmin = req.user.role === 'manager' || req.user.role === 'admin';
+
+      const existing = await LeaveModel.findRequestById(id);
+      if (!existing) {
+        return fail(res, 404, '존재하지 않는 휴가 신청서입니다.');
+      }
+
+      if (!isAdmin) {
+        // 일반 유저: 소유권 + pending 상태 이중 검증
+        if (String(existing.user_id) !== String(req.user.id)) {
+          return fail(res, 403, '본인의 휴가 신청서만 삭제할 수 있습니다.');
+        }
+        if (existing.status !== 'pending') {
+          return fail(res, 400, '이미 결재가 완료된 신청서는 삭제할 수 없습니다. 관리자에게 문의하세요.');
+        }
+      }
+
+      const deleted = await LeaveModel.deleteRequest(id);
+      return success(res, { id: deleted.id }, '휴가 신청서가 삭제되었습니다.');
+    } catch (error) {
+      console.error('휴가 신청서 삭제 중 서버 예외 에러:', error);
+      return fail(res, 500, '서버 오류로 휴가 신청서 삭제에 실패했습니다.');
     }
   }
 };

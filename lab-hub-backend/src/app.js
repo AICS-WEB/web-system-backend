@@ -23,6 +23,7 @@ const filesRoutes = require('./routes/filesRoutes'); // [파일 공유] URL(driv
 const procurementRoutes = require('./routes/procurementRoutes'); // [물품 구매] 자재·supplies 구매 기안 및 회계 심사 통제
 const credentialRoutes = require('./routes/credentialRoutes'); // [공용 크레덴셜] 연구실 공용 계정 및 패스워드 자산 통제
 const notificationRoutes = require('./routes/notificationRoutes'); // [시스템 알림] 알림 센터 장부 적재 및 읽음 제어 통제
+const researchProjectRoutes = require('./routes/researchProjectRoutes'); // [연구과제] 내부 CRUD (공개 조회와 별개, 관리자 쓰기)
 // 연구생 지원 라우터는 공개(외부 지원자용)/관리자(심사자용) 두 라우터로 분리 export됩니다.
 const {
   publicRouter: publicApplicationRoutes, // [연구생 지원 - 공개] 외부 지원자 폼 제출 (rate limit 적용)
@@ -92,6 +93,9 @@ app.use('/api/credentials', credentialRoutes);
 
 // [시스템 알림 센터 도메인] /api/notifications 알림 수신 내역 및 읽음 조치 통제 처리
 app.use('/api/notifications', notificationRoutes);
+
+// [연구과제 내부 관리 도메인] /api/research-projects 연구과제 전체 조회 및 생성/수정/삭제 (공개 조회와 별개)
+app.use('/api/research-projects', researchProjectRoutes);
 
 // [연구생 지원 - 공개 도메인] /api/public/applications 외부 지원자 폼 제출 (인증 불필요, rate limit 적용)
 // ⚠️ 반드시 /api/public 일반 공개 라우터보다 먼저 등록해야 매칭 순서 상 applications 요청이 여기로 흘러들어옵니다.

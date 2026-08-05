@@ -17,7 +17,10 @@ const PublicController = {
    */
   listMembers: async (req, res, next) => {
     try {
-      const rows = await publicModel.listMembers();
+      const [rows, alumniProfiles] = await Promise.all([
+        publicModel.listMembers(),
+        publicModel.listAlumniProfiles(),
+      ]);
 
       const currentStudents = [];
       const alumni = [];
@@ -26,13 +29,64 @@ const PublicController = {
         else currentStudents.push(row);
       }
 
+      const alumniByUserId = new Map(
+        alumni.map((member) => [member.id, member]),
+      );
+
+      for (const profile of alumniProfiles) {
+        const profileDetails = {
+          alumni_profile_id: profile.alumni_profile_id,
+          degree: profile.degree,
+          history: Array.isArray(profile.history) ? profile.history : [],
+          interests: Array.isArray(profile.interests) ? profile.interests : [],
+          display_order: profile.display_order,
+        };
+        const linkedMember = profile.user_id
+          ? alumniByUserId.get(profile.user_id)
+          : null;
+
+        if (linkedMember) {
+          Object.assign(linkedMember, profileDetails, {
+            name: profile.name || linkedMember.name,
+            profile_source: 'users+alumni_profiles',
+          });
+          continue;
+        }
+
+        alumni.push({
+          id: `alumni-profile-${profile.alumni_profile_id}`,
+          user_id: profile.user_id,
+          name: profile.name,
+          department: profile.department,
+          program: profile.program,
+          enrollment_year: profile.enrollment_year,
+          graduation_year: profile.graduation_year,
+          grade_override: profile.grade_override,
+          grade_display: profile.grade_display,
+          research_topic: profile.research_topic,
+          profile_image: profile.profile_image,
+          bio: profile.bio,
+          github_url: profile.github_url,
+          linkedin_url: profile.linkedin_url,
+          is_alumni: true,
+          profile_source: 'alumni_profiles',
+          ...profileDetails,
+        });
+      }
+
+      alumni.sort((a, b) => {
+        const aOrder = a.display_order ?? Number.MAX_SAFE_INTEGER;
+        const bOrder = b.display_order ?? Number.MAX_SAFE_INTEGER;
+        return aOrder - bOrder;
+      });
+
       return success(res, {
         current_students: currentStudents,
-        alumni: alumni,
+        alumni,
         counts: {
           current: currentStudents.length,
           alumni: alumni.length,
-          total: rows.length,
+          total: currentStudents.length + alumni.length,
         },
       });
     } catch (err) { next(err); }

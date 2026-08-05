@@ -51,6 +51,47 @@ const PublicModel = {
   },
 
   /**
+   * @function listAlumniProfiles
+   * @description 독립적으로 관리되는 공개 졸업생 프로필을 반환합니다.
+   *              user_id가 공개 승인 계정과 연결된 경우에만 users의 공개 프로필 필드를 보완합니다.
+   */
+  listAlumniProfiles: async () => {
+    const q = `
+      SELECT
+        ap.id AS alumni_profile_id,
+        ap.user_id,
+        ap.name,
+        ap.degree,
+        ap.history,
+        ap.interests,
+        ap.display_order,
+        u.department,
+        u.program,
+        u.enrollment_year,
+        u.graduation_year,
+        u.grade_override,
+        u.research_topic,
+        u.profile_image,
+        u.bio,
+        u.github_url,
+        u.linkedin_url,
+        CASE
+          WHEN u.student_id IS NOT NULL
+          THEN SUBSTRING(u.student_id FROM 3 FOR 2) || '학번'
+          ELSE NULL
+        END AS grade_display
+      FROM alumni_profiles ap
+      LEFT JOIN users u
+        ON u.id = ap.user_id
+       AND u.is_public_profile = true
+       AND u.account_status = 'approved'
+      ORDER BY ap.display_order ASC, ap.id ASC;
+    `;
+    const { rows } = await db.query(q);
+    return rows;
+  },
+
+  /**
    * @function listPublications
    * @description 공개 표시가 허용된(is_public=true) 논문만 반환합니다.
    *              공개 아카이브 표기에 필요한 저자, 제목, 게재처, 링크 컬럼만 노출합니다.

@@ -50,6 +50,21 @@ const normalizeAuthors = (authors) => {
     .filter((v) => v !== null);
 };
 
+/**
+ * @function validateAttachment
+ * @description 첨부 메타 1건의 스토리지 무결성을 검증합니다(공지 첨부와 동일 규칙).
+ *              반환값이 문자열이면 오류 메시지, null이면 통과입니다.
+ * @param {Object} file - { filename, storageType, fileUrl?, filepath? }
+ */
+const validateAttachment = (file) => {
+  if (!file || typeof file !== 'object') return '첨부 항목 형식이 올바르지 않습니다.';
+  if (!file.filename || !file.storageType) return '첨부파일의 filename 및 storageType(drive/nas)은 필수입니다.';
+  if (!['drive', 'nas'].includes(file.storageType)) return 'storageType은 drive 또는 nas만 허용됩니다.';
+  if (file.storageType === 'drive' && !file.fileUrl) return 'drive 저장 방식은 fileUrl이 필수입니다.';
+  if (file.storageType === 'nas' && !file.filepath) return 'nas 저장 방식은 filepath가 필수입니다.';
+  return null;
+};
+
 const PublicationsController = {
   /**
    * @function createPublication
@@ -69,11 +84,21 @@ const PublicationsController = {
         doi,
         isPublic,
         authors,
+        attachments,
       } = req.body || {};
 
       // 필수 입력 검증. authors_text는 원문 저자 표기 그대로 보존해야 하므로 반드시 요구합니다.
       if (!title || !authorsText || !year || !pubType) {
         return fail(res, 400, 'Missing required fields (title, authorsText, year, pubType).');
+      }
+
+      // 첨부가 함께 오면 스토리지 무결성을 사전 검증합니다(DB CHECK 제약 사전 방어).
+      if (attachments !== undefined) {
+        if (!Array.isArray(attachments)) return fail(res, 400, 'attachments는 배열이어야 합니다.');
+        for (const f of attachments) {
+          const err = validateAttachment(f);
+          if (err) return fail(res, 400, err);
+        }
       }
       if (!VALID_PUB_TYPES.includes(pubType)) {
         return fail(res, 400, `Invalid pubType: ${pubType}`);
@@ -105,7 +130,61 @@ const PublicationsController = {
       }
       const authorRows = await publicationsModel.getAuthors(publication.id);
 
-      return success(res, { ...publication, authors: authorRows });
+      // 첨부가 함께 전달되면 일괄 등록합니다.
+      let attachmentRows = [];
+      if (Array.isArray(attachments) && attachments.length > 0) {
+        attachmentRows = await publicationsModel.insertAttachmentsBulk(publication.id, attachments);
+      }
+
+      return success(res, { ...publication, authors: authorRows, attachments: attachmentRows });
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  /**
+   * @function addAttachment
+   * @description POST /api/publications/:id/attachments — 기존 논문에 첨부파일 메타 1건을 등록합니다.
+   *              실제 파일 바이트는 /api/uploads/sign 으로 Supabase에 업로드한 뒤, 반환된 fileUrl을 여기에 저장합니다.
+   *
+   * Body: { filename, storageType('drive'|'nas'), fileUrl?|filepath?, mimeType?, filesize? }
+   */
+  addAttachment: async (req, res, next) => {
+    try {
+      const id = Number(req.params.id);
+      if (!Number.isInteger(id) || id <= 0) return fail(res, 400, 'Invalid publication id.');
+
+      const publication = await publicationsModel.findById(id);
+      if (!publication) return fail(res, 404, '존재하지 않는 논문입니다.');
+
+      const err = validateAttachment(req.body || {});
+      if (err) return fail(res, 400, err);
+
+      const created = await publicationsModel.addAttachment(id, req.body);
+      return success(res, created, '첨부파일이 등록되었습니다.', 201);
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  /**
+   * @function deleteAttachment
+   * @description DELETE /api/publications/:id/attachments/:attachmentId — 논문 첨부파일 메타 1건을 삭제합니다.
+   */
+  deleteAttachment: async (req, res, next) => {
+    try {
+      const id = Number(req.params.id);
+      const attId = Number(req.params.attachmentId);
+      if (!Number.isInteger(id) || id <= 0) return fail(res, 400, 'Invalid publication id.');
+      if (!Number.isInteger(attId) || attId <= 0) return fail(res, 400, 'Invalid attachment id.');
+
+      const att = await publicationsModel.findAttachmentById(attId);
+      if (!att || att.publication_id !== id) {
+        return fail(res, 404, '해당 논문의 첨부파일을 찾을 수 없습니다.');
+      }
+
+      const deleted = await publicationsModel.removeAttachment(attId);
+      return success(res, { id: deleted.id }, '첨부파일이 삭제되었습니다.');
     } catch (err) {
       next(err);
     }

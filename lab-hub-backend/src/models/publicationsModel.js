@@ -252,7 +252,7 @@ const PublicationsModel = {
   },
 
   // ============================================================
-  //  Publication Attachments (읽기 전용 — 등록/삭제는 별도 도메인)
+  //  Publication Attachments (조회 + 등록/삭제)
   // ============================================================
 
   /**
@@ -269,6 +269,88 @@ const PublicationsModel = {
     `;
     const { rows } = await db.query(queryText, [publicationId]);
     return rows;
+  },
+
+  /**
+   * @function addAttachment
+   * @description 논문에 첨부파일 메타데이터 1건을 등록합니다. storage_type(drive/nas)에 따라 file_url/filepath 중 하나만 저장됩니다.
+   * @param {number} publicationId - 부모 논문 ID (FK)
+   * @param {Object} file - { filename, mimeType?, storageType, fileUrl?, filepath?, filesize? }
+   * @returns {Promise<Object>} 등록된 첨부 레코드
+   */
+  addAttachment: async (publicationId, { filename, mimeType, storageType, fileUrl, filepath, filesize }) => {
+    const queryText = `
+      INSERT INTO publication_attachments (
+        publication_id, filename, mime_type, storage_type, file_url, filepath, filesize
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7)
+      RETURNING id, publication_id, filename, mime_type, storage_type, file_url, filepath, filesize, created_at;
+    `;
+    const values = [
+      publicationId,
+      filename,
+      mimeType || null,
+      storageType,
+      storageType === 'drive' ? (fileUrl || null) : null, // CHECK 제약 상호 배제
+      storageType === 'nas' ? (filepath || null) : null,
+      filesize || null,
+    ];
+    const { rows } = await db.query(queryText, values);
+    return rows[0];
+  },
+
+  /**
+   * @function insertAttachmentsBulk
+   * @description 논문 생성 시 다중 첨부파일을 한 번에 등록합니다. 배열이 비어있으면 빈 배열을 반환합니다.
+   * @param {number} publicationId - 부모 논문 ID (FK)
+   * @param {Array} attachments - 첨부 메타 객체 배열
+   * @returns {Promise<Array>} 등록된 첨부 레코드 배열
+   */
+  insertAttachmentsBulk: async (publicationId, attachments) => {
+    if (!attachments || attachments.length === 0) return [];
+    const fields = ['publication_id', 'filename', 'mime_type', 'storage_type', 'file_url', 'filepath', 'filesize'];
+    const valueExpressions = [];
+    const values = [];
+    attachments.forEach((file, index) => {
+      const off = index * fields.length;
+      valueExpressions.push(`($${off + 1}, $${off + 2}, $${off + 3}, $${off + 4}, $${off + 5}, $${off + 6}, $${off + 7})`);
+      values.push(
+        publicationId,
+        file.filename,
+        file.mimeType || null,
+        file.storageType,
+        file.storageType === 'drive' ? (file.fileUrl || null) : null,
+        file.storageType === 'nas' ? (file.filepath || null) : null,
+        file.filesize || null,
+      );
+    });
+    const queryText = `
+      INSERT INTO publication_attachments (${fields.join(', ')})
+      VALUES ${valueExpressions.join(', ')}
+      RETURNING id, publication_id, filename, mime_type, storage_type, file_url, filepath, filesize;
+    `;
+    const { rows } = await db.query(queryText, values);
+    return rows;
+  },
+
+  /**
+   * @function findAttachmentById
+   * @description 첨부 삭제 전 실존/소속 검증을 위해 단건 조회합니다.
+   * @param {number} id - publication_attachments.id
+   */
+  findAttachmentById: async (id) => {
+    const { rows } = await db.query('SELECT * FROM publication_attachments WHERE id = $1;', [id]);
+    return rows[0];
+  },
+
+  /**
+   * @function removeAttachment
+   * @description 첨부파일 메타데이터 1건을 삭제합니다.
+   * @param {number} id - publication_attachments.id
+   * @returns {Promise<Object|undefined>} 삭제된 레코드의 id
+   */
+  removeAttachment: async (id) => {
+    const { rows } = await db.query('DELETE FROM publication_attachments WHERE id = $1 RETURNING id;', [id]);
+    return rows[0];
   },
 };
 

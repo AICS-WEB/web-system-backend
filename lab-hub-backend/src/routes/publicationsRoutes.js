@@ -21,4 +21,8 @@ router.get('/:id', publicationsController.getPublication);
 router.patch('/:id', publicationsController.updatePublication);
 router.delete('/:id', publicationsController.deletePublication);
 
+// 논문 첨부파일 등록/삭제 (실제 파일은 /api/uploads/sign으로 업로드 후 fileUrl 저장)
+router.post('/:id/attachments', publicationsController.addAttachment);
+router.delete('/:id/attachments/:attachmentId', publicationsController.deleteAttachment);
+
 module.exports = router; // app.js에서 /api/publications 경로에 마운트됩니다.

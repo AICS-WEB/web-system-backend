@@ -134,6 +134,85 @@ const NoticeModel = {
     `;
     const { rows } = await db.query(selectQuery, [noticeId]);
     return rows; // 데이터 가공(ORM 형태 디코딩)은 컨트롤러 계층에서 전담 수행합니다.
+  },
+
+  /**
+   * @function findNoticeById
+   * @description 공지사항 단건을 부작용 없이(view_count 미변경) 조회합니다. 수정/삭제/고정 전 실존 검증용입니다.
+   * @param {number} id - 공지 PK
+   * @returns {Promise<Object|undefined>} 공지 마스터 레코드 또는 미존재 시 undefined
+   */
+  findNoticeById: async (id) => {
+    const queryText = `
+      SELECT id, author_id, title, content, category, is_pinned, view_count, created_at, updated_at
+        FROM notices
+       WHERE id = $1;
+    `;
+    const { rows } = await db.query(queryText, [id]);
+    return rows[0];
+  },
+
+  /**
+   * @function updateNotice
+   * @description 공지사항 마스터 필드(title/content/category/is_pinned)를 부분 수정합니다. 전달된 필드만 동적 SET 합니다.
+   *              (첨부파일 수정은 본 함수 범위 밖이며 별도 처리 대상입니다.)
+   * @param {number} id - 공지 PK
+   * @param {Object} fields - { title?, content?, category?, is_pinned? } 중 수정 항목만
+   * @returns {Promise<Object|undefined>} 수정된 레코드
+   */
+  updateNotice: async (id, fields) => {
+    const allowed = ['title', 'content', 'category', 'is_pinned'];
+    const setClauses = [];
+    const values = [];
+    for (const key of allowed) {
+      if (Object.prototype.hasOwnProperty.call(fields, key)) {
+        values.push(fields[key]);
+        setClauses.push(`${key} = $${values.length}`);
+      }
+    }
+    if (setClauses.length === 0) {
+      return NoticeModel.findNoticeById(id);
+    }
+    setClauses.push(`updated_at = now()`);
+    values.push(id);
+
+    const queryText = `
+      UPDATE notices
+         SET ${setClauses.join(', ')}
+       WHERE id = $${values.length}
+      RETURNING id, author_id, title, content, category, is_pinned, view_count, updated_at;
+    `;
+    const { rows } = await db.query(queryText, values);
+    return rows[0];
+  },
+
+  /**
+   * @function setPinned
+   * @description 공지사항의 상단 고정 상태(is_pinned)만 원자적으로 설정합니다.
+   * @param {number} id - 공지 PK
+   * @param {boolean} isPinned - 설정할 고정 여부
+   * @returns {Promise<Object|undefined>} 수정된 레코드
+   */
+  setPinned: async (id, isPinned) => {
+    const queryText = `
+      UPDATE notices
+         SET is_pinned = $2, updated_at = now()
+       WHERE id = $1
+      RETURNING id, title, is_pinned, updated_at;
+    `;
+    const { rows } = await db.query(queryText, [id, isPinned]);
+    return rows[0];
+  },
+
+  /**
+   * @function deleteNotice
+   * @description 공지사항을 삭제합니다. notice_attachments는 ON DELETE CASCADE로 함께 정리됩니다.
+   * @param {number} id - 공지 PK
+   * @returns {Promise<Object|undefined>} 삭제된 레코드의 id
+   */
+  deleteNotice: async (id) => {
+    const { rows } = await db.query('DELETE FROM notices WHERE id = $1 RETURNING id;', [id]);
+    return rows[0];
   }
 };
 

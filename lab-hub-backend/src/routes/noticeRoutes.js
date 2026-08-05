@@ -36,4 +36,25 @@ router.get('/', authMiddleware, noticeController.listNotices);
  */
 router.get('/:id', authMiddleware, noticeController.getNoticeDetail);
 
+/**
+ * @route   PATCH /api/notices/:id
+ * @desc    [관리자 전용] 공지사항 마스터 필드(title/content/category/isPinned) 수정
+ * @access  Private (manager/admin)
+ */
+router.patch('/:id', authMiddleware, requireRole('manager', 'admin'), noticeController.updateNotice);
+
+/**
+ * @route   PATCH /api/notices/:id/pin
+ * @desc    [관리자 전용] 공지사항 상단 고정 상태(is_pinned) 설정
+ * @access  Private (manager/admin)
+ */
+router.patch('/:id/pin', authMiddleware, requireRole('manager', 'admin'), noticeController.setPinned);
+
+/**
+ * @route   DELETE /api/notices/:id
+ * @desc    [관리자 전용] 공지사항 삭제 (첨부파일 CASCADE 정리)
+ * @access  Private (manager/admin)
+ */
+router.delete('/:id', authMiddleware, requireRole('manager', 'admin'), noticeController.deleteNotice);
+
 module.exports = router; // app.js 글로벌 미들웨어 파이프라인에 마운트하기 위해 export합니다.

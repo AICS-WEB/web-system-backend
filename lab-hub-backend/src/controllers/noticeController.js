@@ -7,6 +7,9 @@ const NoticeModel = require('../models/noticeModel');
 const { success, fail } = require('../utils/response'); // 팀 표준 공통 응답 유틸 (success/fail)
 const db = require('../config/db'); // 트랜잭션 BEGIN/COMMIT 제어용 DB 풀 로드
 
+// notice_category ENUM 유효값. 생성/수정 시 화이트리스트 검증에 재사용합니다.
+const VALID_NOTICE_CATEGORIES = ['general', 'important', 'account_info', 'schedule'];
+
 const NoticeController = {
   /**
    * @function createNotice
@@ -169,6 +172,103 @@ const NoticeController = {
     } catch (error) {
       console.error('공지사항 상세 조회 중 예외 에러 발생:', error);
       return fail(res, 500, '서버 오류로 공지사항을 조회하지 못했습니다.');
+    }
+  },
+
+  /**
+   * @function updateNotice
+   * @description [관리자 전용] 공지사항 마스터 필드(title/content/category/isPinned)를 부분 수정합니다.
+   *
+   * Body (모두 선택, 최소 1개): title, content, category, isPinned
+   */
+  updateNotice: async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { title, content, category, isPinned } = req.body || {};
+
+      // [1] 실존 확인
+      const existing = await NoticeModel.findNoticeById(id);
+      if (!existing) {
+        return fail(res, 404, '존재하지 않는 공지사항입니다.');
+      }
+
+      // [2] 전달된 필드만 정규화 + 검증
+      const fields = {};
+      if (title !== undefined) {
+        if (!title) return fail(res, 400, '공지 제목은 빈 값일 수 없습니다.');
+        fields.title = title;
+      }
+      if (content !== undefined) {
+        if (!content) return fail(res, 400, '공지 본문은 빈 값일 수 없습니다.');
+        fields.content = content;
+      }
+      if (category !== undefined) {
+        if (!VALID_NOTICE_CATEGORIES.includes(category)) {
+          return fail(res, 400, `올바르지 않은 공지 카테고리입니다. 허용 값: ${VALID_NOTICE_CATEGORIES.join(', ')}.`);
+        }
+        fields.category = category;
+      }
+      if (isPinned !== undefined) fields.is_pinned = Boolean(isPinned);
+
+      if (Object.keys(fields).length === 0) {
+        return fail(res, 400, '수정할 필드(title, content, category, isPinned) 중 최소 하나는 전달해야 합니다.');
+      }
+
+      const updated = await NoticeModel.updateNotice(id, fields);
+      return success(res, updated, '공지사항이 수정되었습니다.');
+    } catch (error) {
+      console.error('공지사항 수정 중 서버 예외 에러:', error);
+      return fail(res, 500, '서버 오류로 공지사항 수정에 실패했습니다.');
+    }
+  },
+
+  /**
+   * @function setPinned
+   * @description [관리자 전용] 공지사항의 상단 고정 상태(is_pinned)를 설정합니다.
+   *
+   * Body: isPinned (필수, boolean)
+   */
+  setPinned: async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { isPinned } = req.body || {};
+
+      // isPinned는 명시적 boolean이어야 합니다(토글이 아닌 명시적 설정).
+      if (typeof isPinned !== 'boolean') {
+        return fail(res, 400, 'isPinned(boolean)는 필수 입력값입니다.');
+      }
+
+      const existing = await NoticeModel.findNoticeById(id);
+      if (!existing) {
+        return fail(res, 404, '존재하지 않는 공지사항입니다.');
+      }
+
+      const updated = await NoticeModel.setPinned(id, isPinned);
+      return success(res, updated, isPinned ? '공지사항을 상단 고정했습니다.' : '공지사항 상단 고정을 해제했습니다.');
+    } catch (error) {
+      console.error('공지사항 고정 설정 중 서버 예외 에러:', error);
+      return fail(res, 500, '서버 오류로 공지사항 고정 설정에 실패했습니다.');
+    }
+  },
+
+  /**
+   * @function deleteNotice
+   * @description [관리자 전용] 공지사항을 삭제합니다. 첨부파일(notice_attachments)은 CASCADE로 함께 삭제됩니다.
+   */
+  deleteNotice: async (req, res) => {
+    try {
+      const { id } = req.params;
+
+      const existing = await NoticeModel.findNoticeById(id);
+      if (!existing) {
+        return fail(res, 404, '존재하지 않는 공지사항입니다.');
+      }
+
+      const deleted = await NoticeModel.deleteNotice(id);
+      return success(res, { id: deleted.id }, '공지사항이 삭제되었습니다.');
+    } catch (error) {
+      console.error('공지사항 삭제 중 서버 예외 에러:', error);
+      return fail(res, 500, '서버 오류로 공지사항 삭제에 실패했습니다.');
     }
   }
 };

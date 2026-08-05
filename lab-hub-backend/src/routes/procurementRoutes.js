@@ -33,6 +33,20 @@ router.get('/requests', authMiddleware, procurementController.listRequests);
 router.get('/requests/:id', authMiddleware, procurementController.getRequestDetail);
 
 /**
+ * @route   PATCH /api/procurement/requests/:id
+ * @desc    [본인] 결재 전(pending) 구매 신청서 내용 수정
+ * @access  Private (신청 본인)
+ */
+router.patch('/requests/:id', authMiddleware, procurementController.updateRequest);
+
+/**
+ * @route   DELETE /api/procurement/requests/:id
+ * @desc    구매 신청서 삭제 (본인은 pending만, manager/admin은 상태 무관)
+ * @access  Private (토큰 인증 필수)
+ */
+router.delete('/requests/:id', authMiddleware, procurementController.deleteRequest);
+
+/**
  * @route   PUT /api/procurement/requests/:id/review
  * @desc    [관리자 전용] 기안된 물품 구매 서류 최종 심사 확정 및 반려
  * @access  Private (기장/랩장 및 교수 등급 전용 방어벽 배포)

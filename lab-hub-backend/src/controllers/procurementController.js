@@ -227,6 +227,103 @@ const ProcurementController = {
       console.error('물품 구매 상세 조회 중 서버 예외 에러:', error);
       return fail(res, 500, '서버 오류로 물품 구매 상세 조회에 실패했습니다.');
     }
+  },
+
+  /**
+   * @function updateRequest
+   * @description [본인] 아직 결재 전(pending)인 자신의 물품 구매 신청서 내용을 수정합니다.
+   *              소유권 + pending 상태 검증을 통과해야 하며, 전달된 필드만 반영합니다.
+   *
+   * Body (모두 선택, 최소 1개): itemName, quantity, estimatedPrice, purchaseUrl, reason
+   */
+  updateRequest: async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { itemName, quantity, estimatedPrice, purchaseUrl, reason } = req.body || {};
+
+      // [1] 실존 확인
+      const existing = await ProcurementModel.findRequestById(id);
+      if (!existing) {
+        return fail(res, 404, '존재하지 않는 물품 구매 신청서입니다.');
+      }
+
+      // [2] 소유권 검증
+      if (String(existing.user_id) !== String(req.user.id)) {
+        return fail(res, 403, '본인의 구매 신청서만 수정할 수 있습니다.');
+      }
+
+      // [3] 상태 검증: pending만 수정 가능 (결재/구매 진행된 건은 불가)
+      if (existing.status !== 'pending') {
+        return fail(res, 400, '이미 결재/처리가 진행된 신청서는 수정할 수 없습니다.');
+      }
+
+      // [4] 전달된 필드 정규화 + 수치 정합성 검증
+      const fields = {};
+      if (itemName !== undefined) {
+        if (!itemName) return fail(res, 400, '물품명은 빈 값일 수 없습니다.');
+        fields.item_name = itemName;
+      }
+      if (quantity !== undefined) {
+        const q = parseInt(quantity, 10);
+        if (isNaN(q) || q <= 0) return fail(res, 400, '수량은 1개 이상의 올바른 정수여야 합니다.');
+        fields.quantity = q;
+      }
+      if (estimatedPrice !== undefined) {
+        const p = parseFloat(estimatedPrice);
+        if (isNaN(p) || p < 0) return fail(res, 400, '예상 금액은 0 이상의 올바른 숫자여야 합니다.');
+        fields.estimated_price = p;
+      }
+      if (purchaseUrl !== undefined) fields.purchase_url = purchaseUrl === '' ? null : purchaseUrl;
+      if (reason !== undefined) {
+        if (!reason) return fail(res, 400, '신청 사유는 빈 값일 수 없습니다.');
+        fields.reason = reason;
+      }
+
+      if (Object.keys(fields).length === 0) {
+        return fail(res, 400, '수정할 필드를 최소 하나 이상 전달해야 합니다.');
+      }
+
+      const updated = await ProcurementModel.updateRequest(id, fields);
+      return success(res, updated, '물품 구매 신청서가 수정되었습니다.');
+
+    } catch (error) {
+      console.error('물품 구매 신청서 수정 중 서버 예외 에러:', error);
+      return fail(res, 500, '서버 오류로 물품 구매 신청서 수정에 실패했습니다.');
+    }
+  },
+
+  /**
+   * @function deleteRequest
+   * @description 물품 구매 신청서를 삭제합니다.
+   *              - 본인: 자신의 pending 신청서만 삭제 가능.
+   *              - manager/admin: 상태 무관하게 삭제 가능.
+   */
+  deleteRequest: async (req, res) => {
+    try {
+      const { id } = req.params;
+      const isAdmin = req.user.role === 'manager' || req.user.role === 'admin';
+
+      const existing = await ProcurementModel.findRequestById(id);
+      if (!existing) {
+        return fail(res, 404, '존재하지 않는 물품 구매 신청서입니다.');
+      }
+
+      if (!isAdmin) {
+        if (String(existing.user_id) !== String(req.user.id)) {
+          return fail(res, 403, '본인의 구매 신청서만 삭제할 수 있습니다.');
+        }
+        if (existing.status !== 'pending') {
+          return fail(res, 400, '이미 결재/처리가 진행된 신청서는 삭제할 수 없습니다. 관리자에게 문의하세요.');
+        }
+      }
+
+      const deleted = await ProcurementModel.deleteRequest(id);
+      return success(res, { id: deleted.id }, '물품 구매 신청서가 삭제되었습니다.');
+
+    } catch (error) {
+      console.error('물품 구매 신청서 삭제 중 서버 예외 에러:', error);
+      return fail(res, 500, '서버 오류로 물품 구매 신청서 삭제에 실패했습니다.');
+    }
   }
 };
 

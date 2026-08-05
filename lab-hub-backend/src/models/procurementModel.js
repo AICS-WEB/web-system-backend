@@ -151,6 +151,51 @@ const ProcurementModel = {
     const { rows } = await db.query(queryText, [id]);
     return rows[0];
   },
+
+  /**
+   * @function updateRequest
+   * @description 구매 신청서의 기안 내용(item_name/quantity/estimated_price/purchase_url/reason)을 부분 수정합니다.
+   *              전달된 필드만 동적으로 SET 하며, 소유권/상태 검증은 상위 컨트롤러에서 선행합니다.
+   * @param {number} id - purchase_requests.id
+   * @param {Object} fields - 수정할 항목만 포함한 객체
+   * @returns {Promise<Object|undefined>} 수정된 레코드
+   */
+  updateRequest: async (id, fields) => {
+    const allowed = ['item_name', 'quantity', 'estimated_price', 'purchase_url', 'reason'];
+    const setClauses = [];
+    const values = [];
+    for (const key of allowed) {
+      if (Object.prototype.hasOwnProperty.call(fields, key)) {
+        values.push(fields[key]);
+        setClauses.push(`${key} = $${values.length}`);
+      }
+    }
+    if (setClauses.length === 0) {
+      return ProcurementModel.findRequestById(id);
+    }
+    setClauses.push(`updated_at = now()`);
+    values.push(id);
+
+    const queryText = `
+      UPDATE purchase_requests
+         SET ${setClauses.join(', ')}
+       WHERE id = $${values.length}
+      RETURNING id, user_id, item_name, quantity, estimated_price, purchase_url, reason, status, updated_at;
+    `;
+    const { rows } = await db.query(queryText, values);
+    return rows[0];
+  },
+
+  /**
+   * @function deleteRequest
+   * @description 구매 신청서를 삭제합니다. 소유권/상태 검증은 상위 컨트롤러에서 선행합니다.
+   * @param {number} id - purchase_requests.id
+   * @returns {Promise<Object|undefined>} 삭제된 레코드의 id
+   */
+  deleteRequest: async (id) => {
+    const { rows } = await db.query('DELETE FROM purchase_requests WHERE id = $1 RETURNING id;', [id]);
+    return rows[0];
+  },
 };
 
 module.exports = ProcurementModel;

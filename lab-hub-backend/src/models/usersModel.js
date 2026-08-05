@@ -112,6 +112,126 @@ const UsersModel = {
     const queryText = `SELECT id, email, name, role, account_status FROM users WHERE id = $1;`;
     const { rows } = await db.query(queryText, [id]);
     return rows[0];
+  },
+
+  /**
+   * @function findAllUsers
+   * @description [관리자] 전체 사용자 목록을 민감정보(password_hash) 제외한 안전 필드로 조회합니다. 최신 가입순 정렬.
+   *              is_public_profile은 프론트 호환을 위해 is_public 별칭으로 함께 노출합니다.
+   * @returns {Promise<Array>} 사용자 목록
+   */
+  findAllUsers: async () => {
+    const queryText = `
+      SELECT id, email, name, role, account_status, student_id, department, program,
+             enrollment_year, research_topic, phone, bio, github_url, linkedin_url,
+             profile_image, is_public_profile AS is_public, is_alumni, last_login_at,
+             created_at, updated_at
+        FROM users
+       ORDER BY created_at DESC, id DESC;
+    `;
+    const { rows } = await db.query(queryText);
+    return rows;
+  },
+
+  /**
+   * @function updateUserRole
+   * @description [관리자] 특정 사용자의 역할(role)을 변경합니다.
+   * @param {number} id - users.id
+   * @param {string} role - user_role ENUM ('member','manager','admin')
+   * @returns {Promise<Object|undefined>} 수정된 레코드
+   */
+  updateUserRole: async (id, role) => {
+    const queryText = `
+      UPDATE users SET role = $2, updated_at = now()
+       WHERE id = $1
+      RETURNING id, email, name, role, account_status, updated_at;
+    `;
+    const { rows } = await db.query(queryText, [id, role]);
+    return rows[0];
+  },
+
+  /**
+   * @function findProfileById
+   * @description 사용자 전체 프로필을 민감정보 제외한 필드로 조회합니다. (마이페이지 조회용)
+   * @param {number} id - users.id
+   * @returns {Promise<Object|undefined>} 프로필 레코드
+   */
+  findProfileById: async (id) => {
+    const queryText = `
+      SELECT id, email, name, role, account_status, student_id, department, program,
+             enrollment_year, graduation_year, research_topic, phone, bio,
+             github_url, linkedin_url, profile_image, is_public_profile AS is_public,
+             is_alumni, preferred_language, last_login_at, created_at, updated_at
+        FROM users
+       WHERE id = $1;
+    `;
+    const { rows } = await db.query(queryText, [id]);
+    return rows[0];
+  },
+
+  /**
+   * @function updateProfile
+   * @description [본인] 프로필 수정 가능 필드를 부분 업데이트합니다. 전달된 필드만 동적으로 SET 합니다.
+   *              이메일/학번/역할/계정상태 등 신원·권한 필드는 본 함수 범위 밖(허용 컬럼 화이트리스트로 차단)입니다.
+   * @param {number} id - users.id
+   * @param {Object} fields - 허용 컬럼 중 수정 항목만 포함한 객체
+   * @returns {Promise<Object|undefined>} 수정된 프로필
+   */
+  updateProfile: async (id, fields) => {
+    const allowed = [
+      'name', 'department', 'program', 'enrollment_year', 'research_topic',
+      'phone', 'bio', 'github_url', 'linkedin_url', 'profile_image',
+      'is_public_profile', 'preferred_language',
+    ];
+    const setClauses = [];
+    const values = [];
+    for (const key of allowed) {
+      if (Object.prototype.hasOwnProperty.call(fields, key)) {
+        values.push(fields[key]);
+        setClauses.push(`${key} = $${values.length}`);
+      }
+    }
+    if (setClauses.length === 0) {
+      return UsersModel.findProfileById(id);
+    }
+    setClauses.push(`updated_at = now()`);
+    values.push(id);
+
+    const queryText = `
+      UPDATE users SET ${setClauses.join(', ')}
+       WHERE id = $${values.length}
+      RETURNING id, email, name, role, account_status, department, program, enrollment_year,
+                research_topic, phone, bio, github_url, linkedin_url, profile_image,
+                is_public_profile AS is_public, preferred_language, updated_at;
+    `;
+    const { rows } = await db.query(queryText, values);
+    return rows[0];
+  },
+
+  /**
+   * @function findPasswordHashById
+   * @description 비밀번호 변경 시 현재 비밀번호 검증을 위해 password_hash를 조회합니다.
+   * @param {number} id - users.id
+   * @returns {Promise<Object|undefined>} { id, password_hash }
+   */
+  findPasswordHashById: async (id) => {
+    const { rows } = await db.query('SELECT id, password_hash FROM users WHERE id = $1;', [id]);
+    return rows[0];
+  },
+
+  /**
+   * @function updatePassword
+   * @description 사용자의 비밀번호 해시를 갱신합니다. (해싱은 컨트롤러/유틸에서 선행)
+   * @param {number} id - users.id
+   * @param {string} passwordHash - bcrypt 해시 문자열
+   * @returns {Promise<Object|undefined>} { id }
+   */
+  updatePassword: async (id, passwordHash) => {
+    const { rows } = await db.query(
+      'UPDATE users SET password_hash = $2, updated_at = now() WHERE id = $1 RETURNING id;',
+      [id, passwordHash]
+    );
+    return rows[0];
   }
 };
 

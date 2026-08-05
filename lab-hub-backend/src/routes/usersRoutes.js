@@ -32,6 +32,27 @@ router.get('/me', authMiddleware, (req, res) => {
 });
 
 /**
+ * @route  GET /api/users/me/profile
+ * @desc   [본인] 토큰 주체의 전체 프로필을 DB에서 조회 (마이페이지)
+ * @access Private
+ */
+router.get('/me/profile', authMiddleware, usersController.getMyProfile);
+
+/**
+ * @route  PATCH /api/users/me
+ * @desc   [본인] 프로필 수정 (email/studentId/role/status 제외)
+ * @access Private
+ */
+router.patch('/me', authMiddleware, usersController.updateMyProfile);
+
+/**
+ * @route  POST /api/users/me/password
+ * @desc   [본인] 로그인 상태 비밀번호 변경 (현재 비밀번호 검증)
+ * @access Private
+ */
+router.post('/me/password', authMiddleware, usersController.changePassword);
+
+/**
  * @route GET /api/users/admin-dashboard
  * @desc 최고 관리자 전용 대시보드 (role이 manager 또는 admin인 핵심 인력만 접근 가능)
  */
@@ -42,6 +63,18 @@ router.get('/admin-dashboard', authMiddleware, requireRole('manager', 'admin'), 
     '관리자 보호 자원 접근 승인 완료'
   );
 });
+
+/**
+ * @route  GET /api/users
+ * @desc   [관리자 전용] 전체 사용자 목록 조회 (민감정보 제외)
+ * @access Private (manager/admin)
+ */
+router.get(
+  '/',
+  authMiddleware,
+  requireRole('manager', 'admin'),
+  usersController.listUsers
+);
 
 /**
  * @route  GET /api/users/pending
@@ -77,6 +110,30 @@ router.patch(
   authMiddleware,
   requireRole('manager', 'admin'),
   usersController.rejectUser
+);
+
+/**
+ * @route  PATCH /api/users/:id/role
+ * @desc   [관리자 전용] 특정 사용자의 역할(role) 변경
+ * @access Private (manager/admin)
+ */
+router.patch(
+  '/:id/role',
+  authMiddleware,
+  requireRole('manager', 'admin'),
+  usersController.changeRole
+);
+
+/**
+ * @route  PATCH /api/users/:id/status
+ * @desc   [관리자 전용] 특정 사용자의 계정 상태(account_status) 변경 (deactivated 포함)
+ * @access Private (manager/admin)
+ */
+router.patch(
+  '/:id/status',
+  authMiddleware,
+  requireRole('manager', 'admin'),
+  usersController.changeStatus
 );
 
 module.exports = router;

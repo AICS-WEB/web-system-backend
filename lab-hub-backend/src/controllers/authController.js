@@ -235,12 +235,12 @@ const AuthController = {
         expiresAt,
       });
 
-      // 재설정 링크 이메일 발송. 전송 실패가 사용자 응답을 막지 않도록(계정 존재 여부 비노출) try/catch로 격리합니다.
-      try {
-        await mailer.sendPasswordResetEmail(user.email, tokenPlain);
-      } catch (mailErr) {
+      // 재설정 링크 이메일은 응답을 막지 않도록 백그라운드로 발송합니다(fire-and-forget).
+      // SMTP/API 지연·장애가 HTTP 응답을 붙잡지 않게 하여 프론트의 '발송 중' 무한 대기를 방지하고,
+      // 발송 성공 여부와 무관하게 동일한 성공 응답을 반환해 계정 존재 여부를 비노출합니다.
+      mailer.sendPasswordResetEmail(user.email, tokenPlain).catch((mailErr) => {
         console.error('[auth] 비밀번호 재설정 메일 발송 실패:', mailErr.message);
-      }
+      });
 
       // 개발 환경(NODE_ENV≠production)에서는 응답에 원문 토큰을 노출하여 수동 테스트를 돕습니다.
       // 운영 환경에서는 토큰을 노출하지 않고 오직 이메일로만 전달됩니다.
